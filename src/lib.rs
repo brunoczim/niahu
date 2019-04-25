@@ -265,7 +265,7 @@ mod test {
         vm.mem[0x81] = 3;
         vm.mem[0x83] = 1;
 
-        vm.execute();
+        vm.execute_sync();
 
         assert_eq!(vm.mem[0x82], 147);
         assert_eq!(vm.cycles(), 6);
@@ -306,7 +306,7 @@ mod test {
         vm.mem[0x84] = 255;
         vm.mem[0x85] = 0;
 
-        vm.execute();
+        vm.execute_sync();
 
         assert_eq!(vm.mem[0x82], 55);
         assert_eq!(vm.cycles(), 94);
@@ -336,8 +336,20 @@ mod test {
         vm.mem[0x82] = 1;
         vm.mem[0x83] = 0;
 
-        vm.execute();
+        vm.execute_sync();
 
         assert_eq!(vm.mem[0x81], 0);
+    }
+
+    #[test]
+    fn encode_decode() {
+        let mut vm = Machine::new();
+        vm.mem[0x0] = 42;
+        vm.mem[0xB5] = 220;
+        let mut buf = Vec::new();
+        vm.encode(&mut buf).unwrap();
+        let mut vm2 = Machine::new();
+        vm2.decode(&mut &buf[..]).unwrap();
+        assert_eq!(&vm.mem as &[_], &vm2.mem as &[_]);
     }
 }
