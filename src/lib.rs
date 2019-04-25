@@ -1,20 +1,31 @@
 use std::{fmt, io};
 
+/// Opcode of nop
 pub const NOP: u8 = 0x0;
+/// Opcode of lda _addr_
 pub const LDA: u8 = 0x10;
+/// Opcode of sta _addr_
 pub const STA: u8 = 0x20;
+/// Opcode of add _addr_
 pub const ADD: u8 = 0x30;
+/// Opcode of or _addr_
 pub const OR: u8 = 0x40;
+/// Opcode of and _addr_
 pub const AND: u8 = 0x50;
+/// Opcode of not
 pub const NOT: u8 = 0x60;
+/// Opcode of jmp _addr_
 pub const JMP: u8 = 0x80;
+/// Opcode of jn _addr_
 pub const JN: u8 = 0x90;
+/// Opcode of jz _addr_
 pub const JZ: u8 = 0xA0;
+/// Opcode of hlt
 pub const HLT: u8 = 0xF0;
 
-pub const CYCLES_PER_ASYNC_CALL: usize = 100;
+const HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
 
-pub const HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
+const CYCLES_PER_ASYNC_CALL: usize = 100;
 
 #[derive(Debug, Clone, Default)]
 struct Stats {
