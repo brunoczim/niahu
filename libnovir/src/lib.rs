@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::{fmt, io};
 
 /// Opcode of nop
@@ -242,6 +245,3 @@ impl Default for Machine {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod test;
