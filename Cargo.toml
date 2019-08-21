@@ -1,14 +1,11 @@
 [workspace]
-members = [".", "libnovir"]
+members = [".", "machine", "neander"]
 
 [package]
-name = "novir"
+name = "niau"
 version = "0.1.0"
 authors = ["brunoczim <brunoczim@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-relm = "^0.16"
-relm-derive = "^0.16"
-gtk = "^0.6"
-libnovir = { path = "libnovir" }
+neander = { path = "neander" }
