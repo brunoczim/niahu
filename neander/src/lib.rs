@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod test;
 
-use std::{fmt, io::{self, Read, Write}};
+use std::{
+    fmt,
+    io::{self, Read, Write},
+};
 
 /// Opcode of NOP
 pub const NOP: u8 = 0x0;
@@ -26,13 +29,39 @@ pub const JZ: u8 = 0xA0;
 /// Opcode of HLT
 pub const HLT: u8 = 0xF0;
 
-const HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
+const MEM_HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
+const STATE_HEADER: [u8; 4] = [0x04, 0x4E, 0x44, 0x52];
+
+#[derive(Debug, Clone, Copy)]
+pub struct InstrInfo {
+    pub mnemonic: &'static str,
+    pub needs_operand: bool,
+}
+
+impl InstrInfo {
+    pub fn new(opcode: u8) -> Option<Self> {
+        match opcode {
+            NOP => Some(Self { mnemonic: "NOP", needs_operand: false }),
+            LDA => Some(Self { mnemonic: "LDA", needs_operand: true }),
+            STA => Some(Self { mnemonic: "STA", needs_operand: true }),
+            ADD => Some(Self { mnemonic: "ADD", needs_operand: true }),
+            OR => Some(Self { mnemonic: "OR", needs_operand: true }),
+            AND => Some(Self { mnemonic: "AND", needs_operand: true }),
+            NOT => Some(Self { mnemonic: "NOT", needs_operand: false }),
+            JMP => Some(Self { mnemonic: "JMP", needs_operand: true }),
+            JZ => Some(Self { mnemonic: "JZ", needs_operand: true }),
+            JN => Some(Self { mnemonic: "JN", needs_operand: true }),
+            HLT => Some(Self { mnemonic: "HLT", needs_operand: false }),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Machine {
     ri: u8,
     pc: u8,
-    ra: u8,
+    ac: u8,
     mem: [u8; 256],
     cycling: bool,
     cycles: u64,
@@ -86,31 +115,31 @@ impl Machine {
 
     fn exec_lda(&mut self) {
         self.fetch();
-        self.ra = self.read(self.ri);
+        self.ac = self.read(self.ri);
     }
 
     fn exec_sta(&mut self) {
         self.fetch();
-        self.write(self.ri, self.ra);
+        self.write(self.ri, self.ac);
     }
 
     fn exec_add(&mut self) {
         self.fetch();
-        self.ra = self.ra.wrapping_add(self.read(self.ri));
+        self.ac = self.ac.wrapping_add(self.read(self.ri));
     }
 
     fn exec_or(&mut self) {
         self.fetch();
-        self.ra |= self.read(self.ri);
+        self.ac |= self.read(self.ri);
     }
 
     fn exec_and(&mut self) {
         self.fetch();
-        self.ra &= self.read(self.ri);
+        self.ac &= self.read(self.ri);
     }
 
     fn exec_not(&mut self) {
-        self.ra = !self.ra;
+        self.ac = !self.ac;
     }
 
     fn exec_jmp(&mut self) {
@@ -120,14 +149,14 @@ impl Machine {
 
     fn exec_jz(&mut self) {
         self.fetch();
-        if self.ra == 0 {
+        if self.ac == 0 {
             self.pc = self.ri;
         }
     }
 
     fn exec_jn(&mut self) {
         self.fetch();
-        if self.ra & 0x80 != 0 {
+        if self.ac & 0x80 != 0 {
             self.pc = self.ri;
         }
     }
@@ -143,6 +172,8 @@ fn make_error<T>() -> io::Result<T> {
 }
 
 impl common::Machine for Machine {
+    type Word = u8;
+
     fn step(&mut self) {
         self.cycle();
     }
@@ -156,9 +187,9 @@ impl common::Machine for Machine {
 
     fn save_mem<W>(&self, mut output: W) -> io::Result<()>
     where
-        W: Write
+        W: Write,
     {
-        output.write_all(&HEADER)?;
+        output.write_all(&MEM_HEADER)?;
 
         for &byte in self.mem.iter() {
             output.write_all(&[byte, 0x00])?;
@@ -169,19 +200,18 @@ impl common::Machine for Machine {
 
     fn load_mem<R>(&mut self, mut input: R) -> io::Result<()>
     where
-        R: Read
+        R: Read,
     {
-        let mut header = [0; 4]; 
+        let mut buf = [0; 4];
 
-        input.read_exact(&mut header)?;
-        
-        if header != HEADER {
+        input.read_exact(&mut buf)?;
+
+        if buf != MEM_HEADER {
             make_error()?;
         }
 
         for byte in self.mem.iter_mut() {
-            let mut buf = [0; 2];
-            input.read_exact(&mut buf)?;
+            input.read_exact(&mut buf[.. 2])?;
             *byte = buf[0];
         }
 
@@ -190,12 +220,11 @@ impl common::Machine for Machine {
 
     fn save_state<W>(&self, mut output: W) -> io::Result<()>
     where
-        W: Write
+        W: Write,
     {
-        
-        output.write_all(&HEADER)?;
+        output.write_all(&STATE_HEADER)?;
 
-        output.write_all(&[self.ri, self.pc, self.ra])?;
+        output.write_all(&[self.ri, self.pc, self.ac])?;
         output.write_all(&[if self.cycling { 1 } else { 0 }])?;
         output.write_all(&self.cycles.to_le_bytes())?;
         output.write_all(&self.accesses.to_le_bytes())?;
@@ -207,11 +236,123 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn load_state<R>(&mut self, input: R) -> io::Result<()>
+    fn load_state<R>(&mut self, mut input: R) -> io::Result<()>
     where
-        R: Read
+        R: Read,
     {
-        unimplemented!()
+        let mut buf = [0; 8];
+
+        input.read_exact(&mut buf)?;
+
+        if &buf[.. 4] != &STATE_HEADER {
+            make_error()?;
+        }
+
+        self.ri = buf[4];
+        self.pc = buf[5];
+        self.ac = buf[6];
+        self.cycling = buf[7] != 0;
+
+        input.read_exact(&mut buf)?;
+        self.cycles = u64::from_le_bytes(buf);
+
+        input.read_exact(&mut buf)?;
+        self.accesses = u64::from_le_bytes(buf);
+
+        for byte in self.mem.iter_mut() {
+            input.read_exact(&mut buf[.. 2])?;
+            *byte = buf[0];
+        }
+
+        Ok(())
+    }
+
+    fn display_mem_data<W, B>(
+        &mut self,
+        bounds: B,
+        mut output: W,
+        hex: bool,
+    ) -> io::Result<()>
+    where
+        B: IntoIterator<Item = u8>,
+        W: Write,
+    {
+        for addr in bounds {
+            if hex {
+                write!(
+                    output,
+                    "{:02X} = {:02X}\n",
+                    addr, self.mem[addr as usize]
+                )?
+            } else {
+                write!(
+                    output,
+                    "{:03} = {:03}\n",
+                    addr, self.mem[addr as usize]
+                )?
+            }
+        }
+
+        Ok(())
+    }
+
+    fn display_mem_opcodes<W, B>(
+        &mut self,
+        bounds: B,
+        mut output: W,
+        hex: bool,
+    ) -> io::Result<()>
+    where
+        B: IntoIterator<Item = u8>,
+        W: Write,
+    {
+        let mut needs_operand = false;
+
+        for addr in bounds {
+            if hex {
+                write!(
+                    output,
+                    "{:02X} = {:02X}",
+                    addr, self.mem[addr as usize]
+                )?
+            } else {
+                write!(output, "{:03} = {:03}", addr, self.mem[addr as usize])?
+            }
+
+            if needs_operand {
+                needs_operand = false;
+            } else {
+                if let Some(info) = InstrInfo::new(self.mem[addr as usize]) {
+                    needs_operand = info.needs_operand;
+                    write!(output, "{:^8}", info.mnemonic)?
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn display_registers<W>(
+        &mut self,
+        mut output: W,
+        hex: bool,
+    ) -> io::Result<()>
+    where
+        W: Write,
+    {
+        if hex {
+            write!(output, "ac = {:02X}\n", self.ac)?;
+            write!(output, "pc = {:02X}\n", self.pc)?;
+        } else {
+            write!(output, "ac = {:03}\n", self.ac)?;
+            write!(output, "pc = {:03}\n", self.pc)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_raw(&mut self, addr: u8, byte: u8) {
+        self.mem[addr as usize] = byte;
     }
 }
 
@@ -220,7 +361,7 @@ impl fmt::Debug for Machine {
         fmt.debug_struct("neander::Machine")
             .field("ri", &self.ri)
             .field("pc", &self.pc)
-            .field("ra", &self.ra)
+            .field("ac", &self.ac)
             .field("mem", &(&self.mem as &[u8]))
             .field("cycling", &self.cycling)
             .field("cycles", &self.cycles)
@@ -234,7 +375,7 @@ impl Default for Machine {
         Self {
             ri: 0,
             pc: 0,
-            ra: 0,
+            ac: 0,
             mem: [0; 256],
             cycling: false,
             cycles: 0,
@@ -242,3 +383,17 @@ impl Default for Machine {
         }
     }
 }
+
+impl PartialEq for Machine {
+    fn eq(&self, other: &Self) -> bool {
+        self.ri == other.ri
+            && self.pc == other.pc
+            && self.ac == other.ac
+            && self.cycling == other.cycling
+            && self.cycles == other.cycles
+            && self.accesses == other.accesses
+            && &self.mem as &[u8] == &other.mem as &[u8]
+    }
+}
+
+impl Eq for Machine {}

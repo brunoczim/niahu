@@ -96,7 +96,7 @@ fn is_pos() {
 }
 
 #[test]
-fn encode_decode() {
+fn save_load_mem() {
     let mut vm = Machine::new();
     vm.mem[0x0] = 42;
     vm.mem[0xB5] = 220;
@@ -105,4 +105,21 @@ fn encode_decode() {
     let mut vm2 = Machine::new();
     vm2.load_mem(&mut &buf[..]).unwrap();
     assert_eq!(&vm.mem as &[_], &vm2.mem as &[_]);
+}
+
+#[test]
+fn save_load_state() {
+    let mut vm = Machine::new();
+    vm.mem[0x0] = 42;
+    vm.mem[0xB5] = 220;
+    vm.pc = 0x5;
+    vm.ac = 203;
+    vm.ri = 0x12;
+    vm.cycles = 2;
+    vm.accesses = 6;
+    let mut buf = Vec::new();
+    vm.save_state(&mut buf).unwrap();
+    let mut vm2 = Machine::new();
+    vm2.load_state(&mut &buf[..]).unwrap();
+    assert_eq!(vm, vm2);
 }
