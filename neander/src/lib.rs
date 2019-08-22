@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use std::{fmt, io};
+use std::{fmt, io::{self, Read, Write}};
 
 /// Opcode of NOP
 pub const NOP: u8 = 0x0;
@@ -28,6 +28,7 @@ pub const HLT: u8 = 0xF0;
 
 const HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
 
+#[derive(Clone)]
 pub struct Machine {
     ri: u8,
     pc: u8,
@@ -136,6 +137,11 @@ impl Machine {
     }
 }
 
+fn make_error<T>() -> io::Result<T> {
+    let err = "Invalid or corrupted file";
+    Err(io::Error::new(io::ErrorKind::InvalidData, err))
+}
+
 impl common::Machine for Machine {
     fn step(&mut self) {
         self.cycle();
@@ -146,6 +152,66 @@ impl common::Machine for Machine {
         while self.cycling {
             self.cycle();
         }
+    }
+
+    fn save_mem<W>(&self, mut output: W) -> io::Result<()>
+    where
+        W: Write
+    {
+        output.write_all(&HEADER)?;
+
+        for &byte in self.mem.iter() {
+            output.write_all(&[byte, 0x00])?;
+        }
+
+        Ok(())
+    }
+
+    fn load_mem<R>(&mut self, mut input: R) -> io::Result<()>
+    where
+        R: Read
+    {
+        let mut header = [0; 4]; 
+
+        input.read_exact(&mut header)?;
+        
+        if header != HEADER {
+            make_error()?;
+        }
+
+        for byte in self.mem.iter_mut() {
+            let mut buf = [0; 2];
+            input.read_exact(&mut buf)?;
+            *byte = buf[0];
+        }
+
+        Ok(())
+    }
+
+    fn save_state<W>(&self, mut output: W) -> io::Result<()>
+    where
+        W: Write
+    {
+        
+        output.write_all(&HEADER)?;
+
+        output.write_all(&[self.ri, self.pc, self.ra])?;
+        output.write_all(&[if self.cycling { 1 } else { 0 }])?;
+        output.write_all(&self.cycles.to_le_bytes())?;
+        output.write_all(&self.accesses.to_le_bytes())?;
+
+        for &byte in self.mem.iter() {
+            output.write_all(&[byte, 0x00])?;
+        }
+
+        Ok(())
+    }
+
+    fn load_state<R>(&mut self, input: R) -> io::Result<()>
+    where
+        R: Read
+    {
+        unimplemented!()
     }
 }
 
@@ -160,15 +226,6 @@ impl fmt::Debug for Machine {
             .field("cycles", &self.cycles)
             .field("accesses", &self.accesses)
             .finish()
-    }
-}
-
-impl Clone for Machine {
-    fn clone(&self) -> Self {
-        Self {
-            mem: self.mem.clone(), 
-            ..*self
-        }
     }
 }
 

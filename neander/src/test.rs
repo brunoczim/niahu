@@ -95,15 +95,14 @@ fn is_pos() {
     assert_eq!(vm.mem[0x81], 0);
 }
 
-/*
 #[test]
 fn encode_decode() {
     let mut vm = Machine::new();
     vm.mem[0x0] = 42;
     vm.mem[0xB5] = 220;
     let mut buf = Vec::new();
-    vm.encode(&mut buf).unwrap();
+    vm.save_mem(&mut buf).unwrap();
     let mut vm2 = Machine::new();
-    vm2.decode(&mut &buf[..]).unwrap();
+    vm2.load_mem(&mut &buf[..]).unwrap();
     assert_eq!(&vm.mem as &[_], &vm2.mem as &[_]);
-}*/
+}
