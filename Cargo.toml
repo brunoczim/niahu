@@ -1,11 +1,2 @@
 [workspace]
-members = [".", "machine", "neander"]
-
-[package]
-name = "niahu"
-version = "0.1.0"
-authors = ["brunoczim <brunoczim@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-neander = { path = "neander" }
+members = ["common", "neander"]
