@@ -112,10 +112,13 @@ neander code -i fonte.mem -x -s 0 -e 7F
 ## Observar os Registradores
 Em decimal:
 ```shell
-neander registers -i fonte.mem
+neander registers -i fonte.state
 ```
 
 Em hexadecimal:
 ```shell
-neander registers -i fonte.mem -x
+neander registers -i fonte.state -x
 ```
+
+Note que usar um arquivo .mem devolve registradores zerados, uma vez
+que o arquivo contém somente memória.
