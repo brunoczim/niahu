@@ -1,5 +1,4 @@
 use super::*;
-use common::Machine as _;
 
 #[test]
 fn sub_algo() {

@@ -3,7 +3,9 @@ mod test;
 
 use std::{
     fmt,
+    fs::File,
     io::{self, Read, Write},
+    path::Path,
 };
 
 /// Opcode of NOP
@@ -31,6 +33,20 @@ pub const HLT: u8 = 0xF0;
 
 const MEM_HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
 const STATE_HEADER: [u8; 4] = [0x04, 0x4E, 0x44, 0x52];
+
+pub fn is_mem_file<P>(path: &P) -> bool
+where
+    P: AsRef<Path> + ?Sized,
+{
+    path.as_ref().extension().map_or(false, |ext| ext == "mem")
+}
+
+pub fn is_state_file<P>(path: &P) -> bool
+where
+    P: AsRef<Path> + ?Sized,
+{
+    path.as_ref().extension().map_or(false, |ext| ext == "state")
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct InstrInfo {
@@ -87,6 +103,13 @@ impl Machine {
         self.cycles += 1;
         self.fetch();
         self.decode_exec();
+    }
+
+    pub fn execute(&mut self) {
+        self.cycling = true;
+        while self.cycling {
+            self.cycle();
+        }
     }
 
     pub fn fetch(&mut self) {
@@ -164,28 +187,8 @@ impl Machine {
     fn exec_hlt(&mut self) {
         self.cycling = false;
     }
-}
 
-fn make_error<T>() -> io::Result<T> {
-    let err = "Arquivo Inválido ou Corrompido";
-    Err(io::Error::new(io::ErrorKind::InvalidData, err))
-}
-
-impl common::Machine for Machine {
-    type Word = u8;
-
-    fn step(&mut self) {
-        self.cycle();
-    }
-
-    fn execute(&mut self) {
-        self.cycling = true;
-        while self.cycling {
-            self.cycle();
-        }
-    }
-
-    fn save_mem<W>(&self, mut output: W) -> io::Result<()>
+    pub fn save_mem<W>(&self, mut output: W) -> io::Result<()>
     where
         W: Write,
     {
@@ -198,7 +201,7 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn load_mem<R>(&mut self, mut input: R) -> io::Result<()>
+    pub fn load_mem<R>(&mut self, mut input: R) -> io::Result<()>
     where
         R: Read,
     {
@@ -218,7 +221,7 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn save_state<W>(&self, mut output: W) -> io::Result<()>
+    pub fn save_state<W>(&self, mut output: W) -> io::Result<()>
     where
         W: Write,
     {
@@ -236,7 +239,7 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn load_state<R>(&mut self, mut input: R) -> io::Result<()>
+    pub fn load_state<R>(&mut self, mut input: R) -> io::Result<()>
     where
         R: Read,
     {
@@ -267,7 +270,37 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn display_mem_data<W, B>(
+    pub fn save_at_path<P>(&self, path: &P) -> io::Result<()>
+    where
+        P: AsRef<Path> + ?Sized,
+    {
+        let file = File::create(path.as_ref())?;
+
+        if is_mem_file(path) {
+            self.save_mem(file)
+        } else if is_state_file(path) {
+            self.save_state(file)
+        } else {
+            make_error()
+        }
+    }
+
+    pub fn load_from_path<P>(&mut self, path: &P) -> io::Result<()>
+    where
+        P: AsRef<Path> + ?Sized,
+    {
+        let file = File::open(path.as_ref())?;
+
+        if is_mem_file(path) {
+            self.load_mem(file)
+        } else if is_state_file(path) {
+            self.load_state(file)
+        } else {
+            make_error()
+        }
+    }
+
+    pub fn display_mem_data<W, B>(
         &mut self,
         bounds: B,
         mut output: W,
@@ -296,7 +329,7 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn display_mem_opcodes<W, B>(
+    pub fn display_mem_opcodes<W, B>(
         &mut self,
         bounds: B,
         mut output: W,
@@ -324,15 +357,17 @@ impl common::Machine for Machine {
             } else {
                 if let Some(info) = InstrInfo::new(self.mem[addr as usize]) {
                     needs_operand = info.needs_operand;
-                    write!(output, "{:^8}", info.mnemonic)?
+                    write!(output, "  {}", info.mnemonic)?
                 }
             }
+
+            write!(output, "\n")?;
         }
 
         Ok(())
     }
 
-    fn display_registers<W>(
+    pub fn display_registers<W>(
         &mut self,
         mut output: W,
         hex: bool,
@@ -351,9 +386,14 @@ impl common::Machine for Machine {
         Ok(())
     }
 
-    fn write_raw(&mut self, addr: u8, byte: u8) {
+    pub fn write_raw(&mut self, addr: u8, byte: u8) {
         self.mem[addr as usize] = byte;
     }
+}
+
+fn make_error<T>() -> io::Result<T> {
+    let err = "Arquivo Inválido ou Corrompido";
+    Err(io::Error::new(io::ErrorKind::InvalidData, err))
 }
 
 impl fmt::Debug for Machine {
