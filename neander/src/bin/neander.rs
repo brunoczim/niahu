@@ -55,6 +55,14 @@ enum Command {
         end: Option<String>,
     },
 
+    #[structopt(name = "registers")]
+    Regs {
+        #[structopt(short = "i", parse(from_os_str))]
+        input: PathBuf,
+        #[structopt(short = "x")]
+        hex: bool,
+    },
+
     #[structopt(name = "write")]
     Write {
         #[structopt(short = "i", parse(from_os_str))]
@@ -94,6 +102,8 @@ fn try_main() -> io::Result<()> {
         Command::Code { input, hex, start, end } => {
             subcommand_code(input, hex, start, end)
         },
+
+        Command::Regs { input, hex } => subcommand_regs(input, hex),
 
         Command::Write { input, output, hex, addr, data } => {
             subcommand_write(input, output, hex, addr, data)
@@ -161,6 +171,15 @@ fn subcommand_code(
 
     vm.load_from_path(&input)?;
     vm.display_mem_opcodes(start ..= end, io::stdout(), hex)?;
+
+    Ok(())
+}
+
+fn subcommand_regs(input: PathBuf, hex: bool) -> io::Result<()> {
+    let mut vm = neander::Machine::new();
+
+    vm.load_from_path(&input)?;
+    vm.display_registers(io::stdout(), hex)?;
 
     Ok(())
 }

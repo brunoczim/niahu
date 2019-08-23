@@ -108,3 +108,14 @@ Em hexadecimal:
 ```shell
 neander code -i fonte.mem -x -s 0 -e 7F
 ```
+
+## Observar os Registradores
+Em decimal:
+```shell
+neander registers -i fonte.mem
+```
+
+Em hexadecimal:
+```shell
+neander registers -i fonte.mem -x
+```
