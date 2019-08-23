@@ -40,7 +40,7 @@ pub struct InstrInfo {
 
 impl InstrInfo {
     pub fn new(opcode: u8) -> Option<Self> {
-        match opcode {
+        match opcode & 0xF0 {
             NOP => Some(Self { mnemonic: "NOP", needs_operand: false }),
             LDA => Some(Self { mnemonic: "LDA", needs_operand: true }),
             STA => Some(Self { mnemonic: "STA", needs_operand: true }),
@@ -167,7 +167,7 @@ impl Machine {
 }
 
 fn make_error<T>() -> io::Result<T> {
-    let err = "Invalid or corrupted file";
+    let err = "Arquivo Inválido ou Corrompido";
     Err(io::Error::new(io::ErrorKind::InvalidData, err))
 }
 
