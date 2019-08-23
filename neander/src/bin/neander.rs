@@ -1,36 +1,59 @@
-use std::{io, path::PathBuf, process};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process,
+};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "neander",
-    about = "Simulador multiplataforma da máquina hipotética Neander"
+    about = "Multiplatform Simulator of Neander Hypothetical Machine"
 )]
 enum Command {
+    /// Creates a new zeroed memory or a zeroed state
     #[structopt(name = "new")]
     New {
         #[structopt(short = "o", parse(from_os_str))]
         output: PathBuf,
     },
 
+    /// Writes a byte into a given address
+    #[structopt(name = "write")]
+    Write {
+        #[structopt(short = "i", parse(from_os_str))]
+        input: PathBuf,
+        #[structopt(short = "o", parse(from_os_str))]
+        output: Option<PathBuf>,
+        #[structopt(short = "x")]
+        hex: bool,
+        #[structopt(short = "a")]
+        addr: String,
+        #[structopt(short = "d")]
+        data: String,
+    },
+
+    /// Runs the code in a machine until HLT is found
     #[structopt(name = "run")]
     Run {
         #[structopt(short = "i", parse(from_os_str))]
         input: PathBuf,
         #[structopt(short = "o", parse(from_os_str))]
-        output: PathBuf,
+        output: Option<PathBuf>,
     },
 
-    #[structopt(name = "run")]
+    /// Runs only a few steps of the code in a machine
+    #[structopt(name = "step")]
     Step {
         #[structopt(short = "i", parse(from_os_str))]
         input: PathBuf,
         #[structopt(short = "o", parse(from_os_str))]
-        output: PathBuf,
+        output: Option<PathBuf>,
         #[structopt(short = "n", default_value = "1")]
         steps: u64,
     },
 
+    /// Shows a given range of memory data of a machine
     #[structopt(name = "data")]
     Data {
         #[structopt(short = "i", parse(from_os_str))]
@@ -43,6 +66,7 @@ enum Command {
         end: Option<String>,
     },
 
+    /// Shows a range of memory data with mnemonics in a machine.
     #[structopt(name = "code")]
     Code {
         #[structopt(short = "i", parse(from_os_str))]
@@ -55,6 +79,7 @@ enum Command {
         end: Option<String>,
     },
 
+    /// Shows register data of a machine (.state)
     #[structopt(name = "registers")]
     Regs {
         #[structopt(short = "i", parse(from_os_str))]
@@ -63,24 +88,11 @@ enum Command {
         hex: bool,
     },
 
+    /// Shows statistics of code being run in a machine (.state)
     #[structopt(name = "stats")]
     Stats {
         #[structopt(short = "i", parse(from_os_str))]
         input: PathBuf,
-    },
-
-    #[structopt(name = "write")]
-    Write {
-        #[structopt(short = "i", parse(from_os_str))]
-        input: PathBuf,
-        #[structopt(short = "o", parse(from_os_str))]
-        output: PathBuf,
-        #[structopt(short = "x")]
-        hex: bool,
-        #[structopt(short = "a")]
-        addr: String,
-        #[structopt(short = "d")]
-        data: String,
     },
 }
 
@@ -94,6 +106,10 @@ fn main() {
 fn try_main() -> io::Result<()> {
     match Command::from_args() {
         Command::New { output } => subcommand_new(output),
+
+        Command::Write { input, output, hex, addr, data } => {
+            subcommand_write(input, output, hex, addr, data)
+        },
 
         Command::Run { input, output } => subcommand_run(input, output),
 
@@ -112,10 +128,6 @@ fn try_main() -> io::Result<()> {
         Command::Regs { input, hex } => subcommand_regs(input, hex),
 
         Command::Stats { input } => subcommand_stats(input),
-
-        Command::Write { input, output, hex, addr, data } => {
-            subcommand_write(input, output, hex, addr, data)
-        },
     }
 }
 
@@ -125,19 +137,37 @@ fn subcommand_new(output: PathBuf) -> io::Result<()> {
     Ok(())
 }
 
-fn subcommand_run(input: PathBuf, output: PathBuf) -> io::Result<()> {
+fn subcommand_write(
+    input: PathBuf,
+    output: Option<PathBuf>,
+    hex: bool,
+    addr: String,
+    data: String,
+) -> io::Result<()> {
+    let addr = parse_dec_or_hex(&addr, hex)?;
+    let data = parse_dec_or_hex(&data, hex)?;
+    let mut vm = neander::Machine::new();
+
+    vm.load_from_path(&input)?;
+    vm.write_raw(addr, data);
+    vm.save_at_path(resolve_output(&input, &output))?;
+
+    Ok(())
+}
+
+fn subcommand_run(input: PathBuf, output: Option<PathBuf>) -> io::Result<()> {
     let mut vm = neander::Machine::new();
 
     vm.load_from_path(&input)?;
     vm.execute();
-    vm.save_at_path(&output)?;
+    vm.save_at_path(resolve_output(&input, &output))?;
 
     Ok(())
 }
 
 fn subcommand_step(
     input: PathBuf,
-    output: PathBuf,
+    output: Option<PathBuf>,
     steps: u64,
 ) -> io::Result<()> {
     let mut vm = neander::Machine::new();
@@ -146,7 +176,7 @@ fn subcommand_step(
     for _ in 0 .. steps {
         vm.cycle();
     }
-    vm.save_at_path(&output)?;
+    vm.save_at_path(resolve_output(&input, &output))?;
 
     Ok(())
 }
@@ -201,22 +231,11 @@ fn subcommand_stats(input: PathBuf) -> io::Result<()> {
     Ok(())
 }
 
-fn subcommand_write(
-    input: PathBuf,
-    output: PathBuf,
-    hex: bool,
-    addr: String,
-    data: String,
-) -> io::Result<()> {
-    let addr = parse_dec_or_hex(&addr, hex)?;
-    let data = parse_dec_or_hex(&data, hex)?;
-    let mut vm = neander::Machine::new();
-
-    vm.load_from_path(&input)?;
-    vm.write_raw(addr, data);
-    vm.save_at_path(&output)?;
-
-    Ok(())
+fn resolve_output<'args>(
+    input: &'args Path,
+    output_arg: &'args Option<PathBuf>,
+) -> &'args Path {
+    output_arg.as_ref().map_or(input, |buf| &**buf)
 }
 
 fn parse_dec_or_hex(num: &str, hex: bool) -> io::Result<u8> {

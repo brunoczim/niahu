@@ -68,6 +68,13 @@ Para escrever 3 no endereço A0, em hexadecimal:
 neander write -i fonte.mem -o destino.mem -x -a A0 -d 3
 ```
 
+Em qualquer subcomando, se fonte for também o destino, somente a fonte
+precisa ser especificada. Por exemplo:
+
+```shell
+neander write -i fonte_e_destino.mem -a 50 -d 3
+```
+
 ## Executar até o HLT
 ```shell
 neander run -i fonte.mem -o destino.mem
@@ -98,6 +105,8 @@ Em hexadecimal:
 neander data -i fonte.mem -x -s 80 -e FF
 ```
 
+Se o intervalo não for especificado, 128--255 será usado.
+
 ## Observar a Memória Com Mnemônicos
 Em decimal:
 ```shell
@@ -108,6 +117,8 @@ Em hexadecimal:
 ```shell
 neander code -i fonte.mem -x -s 0 -e 7F
 ```
+
+Se o intervalo não for especificado, 0--127 será usado.
 
 ## Observar os Registradores
 Em decimal:
