@@ -7,6 +7,12 @@ use structopt::StructOpt;
     about = "Simulador multiplataforma da máquina hipotética Neander"
 )]
 enum Command {
+    #[structopt(name = "new")]
+    New {
+        #[structopt(short = "o", parse(from_os_str))]
+        output: PathBuf,
+    },
+
     #[structopt(name = "run")]
     Run {
         #[structopt(short = "i", parse(from_os_str))]
@@ -73,6 +79,8 @@ fn main() {
 
 fn try_main() -> io::Result<()> {
     match Command::from_args() {
+        Command::New { output } => subcommand_new(output),
+
         Command::Run { input, output } => subcommand_run(input, output),
 
         Command::Step { input, output, steps } => {
@@ -91,6 +99,12 @@ fn try_main() -> io::Result<()> {
             subcommand_write(input, output, hex, addr, data)
         },
     }
+}
+
+fn subcommand_new(output: PathBuf) -> io::Result<()> {
+    let vm = neander::Machine::new();
+    vm.save_at_path(&output)?;
+    Ok(())
 }
 
 fn subcommand_run(input: PathBuf, output: PathBuf) -> io::Result<()> {
