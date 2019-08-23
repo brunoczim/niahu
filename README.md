@@ -42,3 +42,69 @@ Além do arquivo .mem habitual, a implementação trabalha com um arquivo .state
 contém informações mais detalhadas além da memória. Para compartilhar com os colegas
 e os professores, você vai querer entregar o arquivo .mem, enquanto o arquivo .state
 é usado para fazer execução passo a passo.
+
+## Novo arquivo
+Para criar uma memória zerada:
+```shell
+neander new -o arquivo.mem
+```
+
+Para criar um estado zerado:
+```shell
+neander new -o arquivo.state
+```
+
+Em todos os casos, nos exemplos subsequentes onde se passa um arquivo.mem,
+arquivo.state também pode ser passado e vice-versa.
+
+## Escrever em um Endereço
+Para escrever 3 no endereço 50, em decimal:
+```shell
+neander write -i fonte.mem -o destino.mem -a 50 -d 3
+```
+
+Para escrever 3 no endereço A0, em hexadecimal:
+```shell
+neander write -i fonte.mem -o destino.mem -x -a A0 -d 3
+```
+
+## Executar até o HLT
+```shell
+neander run -i fonte.mem -o destino.mem
+```
+
+## Executar apenas alguns passos:
+Para executar 4 passos:
+```shell
+neander step -i fonte.state -o destino.state -n 4 
+```
+
+Se apenas um passo for desejado, `-n` pode ser omitido.
+
+```shell
+neander step -i fonte.state -o destino.state
+```
+
+Apesar de aceito, um arquivo .mem não terá efeitos na execução.
+
+## Observar a Memória
+Em decimal:
+```shell
+neander data -i fonte.mem -s 128 -e 255
+```
+
+Em hexadecimal:
+```shell
+neander data -i fonte.mem -x -s 80 -e FF
+```
+
+## Observar a Memória Com Mnemônicos
+Em decimal:
+```shell
+neander code -i fonte.mem -s 0 -e 127
+```
+
+Em hexadecimal:
+```shell
+neander code -i fonte.mem -x -s 0 -e 7F
+```
