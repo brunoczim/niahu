@@ -122,3 +122,10 @@ neander registers -i fonte.state -x
 
 Note que usar um arquivo .mem devolve registradores zerados, uma vez
 que o arquivo contém somente memória.
+
+## Observar Estatísticas
+```shell
+neander stats -i fonte.state
+```
+Note que usar um arquivo .mem devolve estatísticas zeradas, uma vez
+que o arquivo contém somente memória.

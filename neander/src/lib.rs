@@ -386,6 +386,16 @@ impl Machine {
         Ok(())
     }
 
+    pub fn display_stats<W>(&mut self, mut output: W) -> io::Result<()>
+    where
+        W: Write,
+    {
+        write!(output, "cycles = {}\n", self.cycles)?;
+        write!(output, "accesses = {}\n", self.accesses)?;
+
+        Ok(())
+    }
+
     pub fn write_raw(&mut self, addr: u8, byte: u8) {
         self.mem[addr as usize] = byte;
     }

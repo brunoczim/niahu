@@ -63,6 +63,12 @@ enum Command {
         hex: bool,
     },
 
+    #[structopt(name = "stats")]
+    Stats {
+        #[structopt(short = "i", parse(from_os_str))]
+        input: PathBuf,
+    },
+
     #[structopt(name = "write")]
     Write {
         #[structopt(short = "i", parse(from_os_str))]
@@ -104,6 +110,8 @@ fn try_main() -> io::Result<()> {
         },
 
         Command::Regs { input, hex } => subcommand_regs(input, hex),
+
+        Command::Stats { input } => subcommand_stats(input),
 
         Command::Write { input, output, hex, addr, data } => {
             subcommand_write(input, output, hex, addr, data)
@@ -180,6 +188,15 @@ fn subcommand_regs(input: PathBuf, hex: bool) -> io::Result<()> {
 
     vm.load_from_path(&input)?;
     vm.display_registers(io::stdout(), hex)?;
+
+    Ok(())
+}
+
+fn subcommand_stats(input: PathBuf) -> io::Result<()> {
+    let mut vm = neander::Machine::new();
+
+    vm.load_from_path(&input)?;
+    vm.display_stats(io::stdout())?;
 
     Ok(())
 }
