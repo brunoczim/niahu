@@ -75,6 +75,17 @@ precisa ser especificada. Por exemplo:
 neander write -i fonte_e_destino.mem -a 50 -d 3
 ```
 
+## Definir o Conteúdo do Program Counter
+Para escrever 32 em decimal:
+```shell
+neander setpc -i fonte.mem -o destino.mem -d 32
+```
+
+Para escrever 20 em hexadecimal:
+```shell
+neander setpc -i fonte.mem -o destino.mem -x -d 20
+```
+
 ## Executar até o HLT
 ```shell
 neander run -i fonte.mem -o destino.mem

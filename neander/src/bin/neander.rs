@@ -19,7 +19,7 @@ enum Command {
         output: PathBuf,
     },
 
-    /// Writes a byte into a given address
+    /// Writes a byte into Program Counter register
     #[structopt(name = "write")]
     Write {
         #[structopt(short = "i", parse(from_os_str))]
@@ -30,6 +30,19 @@ enum Command {
         hex: bool,
         #[structopt(short = "a")]
         addr: String,
+        #[structopt(short = "d")]
+        data: String,
+    },
+
+    /// Writes a byte into a given address
+    #[structopt(name = "setpc")]
+    SetPc {
+        #[structopt(short = "i", parse(from_os_str))]
+        input: PathBuf,
+        #[structopt(short = "o", parse(from_os_str))]
+        output: Option<PathBuf>,
+        #[structopt(short = "x")]
+        hex: bool,
         #[structopt(short = "d")]
         data: String,
     },
@@ -112,6 +125,10 @@ fn try_main() -> Fallible<()> {
             subcommand_write(input, output, hex, addr, data)
         },
 
+        Command::SetPc { input, output, hex, data } => {
+            subcommand_setpc(input, output, hex, data)
+        },
+
         Command::Run { input, output } => subcommand_run(input, output),
 
         Command::Step { input, output, steps } => {
@@ -151,6 +168,22 @@ fn subcommand_write(
 
     vm.load_from_path(&input)?;
     vm.write_raw(addr, data);
+    vm.save_at_path(resolve_output(&input, &output))?;
+
+    Ok(())
+}
+
+fn subcommand_setpc(
+    input: PathBuf,
+    output: Option<PathBuf>,
+    hex: bool,
+    data: String,
+) -> Fallible<()> {
+    let data = parse_dec_or_hex(&data, hex)?;
+    let mut vm = neander::Machine::new();
+
+    vm.load_from_path(&input)?;
+    vm.set_pc(data);
     vm.save_at_path(resolve_output(&input, &output))?;
 
     Ok(())

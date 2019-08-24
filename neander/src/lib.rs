@@ -95,9 +95,19 @@ impl Machine {
         self.mem[addr as usize]
     }
 
-    pub fn write(&mut self, addr: u8, byte: u8) {
+    pub fn write(&mut self, addr: u8, data: u8) {
         self.accesses = self.accesses.saturating_add(1);
-        self.mem[addr as usize] = byte;
+        self.mem[addr as usize] = data;
+    }
+
+    pub fn set_pc(&mut self, data: u8) {
+        self.pc = data;
+        self.cycles = 0;
+        self.accesses = 0;
+    }
+
+    pub fn write_raw(&mut self, addr: u8, data: u8) {
+        self.mem[addr as usize] = data;
     }
 
     pub fn cycle(&mut self) {
@@ -403,10 +413,6 @@ impl Machine {
         write!(output, "accesses = {}\n", self.accesses)?;
 
         Ok(())
-    }
-
-    pub fn write_raw(&mut self, addr: u8, byte: u8) {
-        self.mem[addr as usize] = byte;
     }
 }
 
