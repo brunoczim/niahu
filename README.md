@@ -36,6 +36,17 @@ Se você deseja instalá-lo em outro lugar, use:
 cargo install --path neander --root caminho/diretorio/escolhido
 ```
 
+### Ahmes 
+Após o download:
+```shell
+cargo install --path ahmes
+```
+Isso instalará um binário chamado `ahmes` no caminho `~/.cargo/bin/`.
+Se você deseja instalá-lo em outro lugar, use:
+```shell
+cargo install --path ahmes --root caminho/diretorio/escolhido
+```
+
 # Uso
 
 Além do arquivo .mem habitual, a implementação trabalha com um arquivo .state, que
@@ -56,6 +67,9 @@ neander new -o arquivo.state
 
 Em todos os casos, nos exemplos subsequentes onde se passa um arquivo.mem,
 arquivo.state também pode ser passado e vice-versa.
+
+Para o Ahmes, todos os comandos são os mesmos, basta substituir `neander` por
+`ahmes`.
 
 ## Escrever em um Endereço
 Para escrever 3 no endereço 50, em decimal:

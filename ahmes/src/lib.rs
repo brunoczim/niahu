@@ -23,17 +23,43 @@ pub const OR: u8 = 0x40;
 pub const AND: u8 = 0x50;
 /// Opcode of NOT
 pub const NOT: u8 = 0x60;
+/// Opcode of SUB _addr_
+pub const SUB: u8 = 0x70;
 /// Opcode of JMP _addr_
 pub const JMP: u8 = 0x80;
 /// Opcode of JN _addr_
 pub const JN: u8 = 0x90;
+/// Opcode of JP _addr_
+pub const JP: u8 = 0x94;
+/// Opcode of JV _addr_
+pub const JV: u8 = 0x98;
+/// Opcode of JNV _addr_
+pub const JNV: u8 = 0x9C;
 /// Opcode of JZ _addr_
 pub const JZ: u8 = 0xA0;
+/// Opcode of JNZ _addr_
+pub const JNZ: u8 = 0xA4;
+/// Opcode of JC _addr_
+pub const JC: u8 = 0xB0;
+/// Opcode of JNC _addr_
+pub const JNC: u8 = 0xB4;
+/// Opcode of JB _addr_
+pub const JB: u8 = 0xB8;
+/// Opcode of JNB _addr_
+pub const JNB: u8 = 0xBC;
+/// Opcode of SHR
+pub const SHR: u8 = 0xE0;
+/// Opcode of SHL
+pub const SHL: u8 = 0xE1;
+/// Opcode of ROR
+pub const ROR: u8 = 0xE2;
+/// Opcode of ROL
+pub const ROL: u8 = 0xE3;
 /// Opcode of HLT
 pub const HLT: u8 = 0xF0;
 
-const MEM_HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
-const STATE_HEADER: [u8; 4] = [0x04, 0x4E, 0x44, 0x52];
+const MEM_HEADER: [u8; 4] = [0x03, 0x41, 0x48, 0x4D];
+const STATE_HEADER: [u8; 4] = [0x04, 0x41, 0x48, 0x4D];
 
 pub fn is_mem_file<P>(path: &P) -> bool
 where
@@ -57,18 +83,31 @@ pub struct InstrInfo {
 
 impl InstrInfo {
     pub fn new(opcode: u8) -> Option<Self> {
-        match opcode & 0xF0 {
-            NOP => Some(Self { mnemonic: "NOP", needs_operand: false }),
-            STA => Some(Self { mnemonic: "STA", needs_operand: true }),
-            LDA => Some(Self { mnemonic: "LDA", needs_operand: true }),
-            ADD => Some(Self { mnemonic: "ADD", needs_operand: true }),
-            OR => Some(Self { mnemonic: "OR", needs_operand: true }),
-            AND => Some(Self { mnemonic: "AND", needs_operand: true }),
-            NOT => Some(Self { mnemonic: "NOT", needs_operand: false }),
-            JMP => Some(Self { mnemonic: "JMP", needs_operand: true }),
-            JN => Some(Self { mnemonic: "JN", needs_operand: true }),
-            JZ => Some(Self { mnemonic: "JZ", needs_operand: true }),
-            HLT => Some(Self { mnemonic: "HLT", needs_operand: false }),
+        match (opcode & 0xF0, opcode & 0xFC, opcode) {
+            (NOP, ..) => Some(Self { mnemonic: "NOP", needs_operand: false }),
+            (STA, ..) => Some(Self { mnemonic: "STA", needs_operand: true }),
+            (LDA, ..) => Some(Self { mnemonic: "LDA", needs_operand: true }),
+            (ADD, ..) => Some(Self { mnemonic: "ADD", needs_operand: true }),
+            (OR, ..) => Some(Self { mnemonic: "OR", needs_operand: true }),
+            (AND, ..) => Some(Self { mnemonic: "AND", needs_operand: true }),
+            (NOT, ..) => Some(Self { mnemonic: "NOT", needs_operand: false }),
+            (SUB, ..) => Some(Self { mnemonic: "SUB", needs_operand: true }),
+            (_, JMP, _) => Some(Self { mnemonic: "JMP", needs_operand: true }),
+            (_, JN, _) => Some(Self { mnemonic: "JN", needs_operand: true }),
+            (_, JP, _) => Some(Self { mnemonic: "JP", needs_operand: true }),
+            (_, JV, _) => Some(Self { mnemonic: "JV", needs_operand: true }),
+            (_, JNV, _) => Some(Self { mnemonic: "JNV", needs_operand: true }),
+            (_, JZ, _) => Some(Self { mnemonic: "JZ", needs_operand: true }),
+            (_, JNZ, _) => Some(Self { mnemonic: "JNZ", needs_operand: true }),
+            (_, JC, _) => Some(Self { mnemonic: "JC", needs_operand: true }),
+            (_, JNC, _) => Some(Self { mnemonic: "JNC", needs_operand: true }),
+            (_, JB, _) => Some(Self { mnemonic: "JB", needs_operand: true }),
+            (_, JNB, _) => Some(Self { mnemonic: "JNB", needs_operand: true }),
+            (_, _, SHR) => Some(Self { mnemonic: "SHR", needs_operand: false }),
+            (_, _, SHL) => Some(Self { mnemonic: "SHL", needs_operand: false }),
+            (_, _, ROR) => Some(Self { mnemonic: "ROR", needs_operand: false }),
+            (_, _, ROL) => Some(Self { mnemonic: "ROL", needs_operand: false }),
+            (HLT, ..) => Some(Self { mnemonic: "HLT", needs_operand: false }),
             _ => None,
         }
     }
@@ -79,6 +118,9 @@ pub struct Machine {
     ri: u8,
     pc: u8,
     ac: u8,
+    overflow: bool,
+    carry: bool,
+    borrow: bool,
     mem: [u8; 256],
     cycling: bool,
     cycles: u64,
@@ -95,9 +137,9 @@ impl Machine {
         self.mem[addr as usize]
     }
 
-    pub fn write(&mut self, addr: u8, data: u8) {
+    pub fn write(&mut self, addr: u8, byte: u8) {
         self.accesses = self.accesses.saturating_add(1);
-        self.mem[addr as usize] = data;
+        self.mem[addr as usize] = byte;
     }
 
     pub fn set_pc(&mut self, data: u8) {
@@ -129,18 +171,31 @@ impl Machine {
     }
 
     pub fn decode_exec(&mut self) {
-        match self.ri & 0xF0 {
-            NOP => self.exec_nop(),
-            STA => self.exec_sta(),
-            LDA => self.exec_lda(),
-            ADD => self.exec_add(),
-            OR => self.exec_or(),
-            AND => self.exec_and(),
-            NOT => self.exec_not(),
-            JMP => self.exec_jmp(),
-            JN => self.exec_jn(),
-            JZ => self.exec_jz(),
-            HLT => self.exec_hlt(),
+        match (self.ri & 0xF0, self.ri & 0xFC, self.ri) {
+            (NOP, ..) => self.exec_nop(),
+            (STA, ..) => self.exec_sta(),
+            (LDA, ..) => self.exec_lda(),
+            (ADD, ..) => self.exec_add(),
+            (OR, ..) => self.exec_or(),
+            (AND, ..) => self.exec_and(),
+            (NOT, ..) => self.exec_not(),
+            (SUB, ..) => self.exec_sub(),
+            (_, JMP, _) => self.exec_jmp(),
+            (_, JN, _) => self.exec_jn(),
+            (_, JP, _) => self.exec_jp(),
+            (_, JV, _) => self.exec_jv(),
+            (_, JNV, _) => self.exec_jnv(),
+            (_, JZ, _) => self.exec_jz(),
+            (_, JNZ, _) => self.exec_jnz(),
+            (_, JC, _) => self.exec_jc(),
+            (_, JNC, _) => self.exec_jnc(),
+            (_, JB, _) => self.exec_jb(),
+            (_, JNB, _) => self.exec_jnb(),
+            (_, _, SHR) => self.exec_shr(),
+            (_, _, SHL) => self.exec_shl(),
+            (_, _, ROR) => self.exec_ror(),
+            (_, _, ROL) => self.exec_rol(),
+            (HLT, ..) => self.exec_hlt(),
             _ => (),
         }
     }
@@ -159,7 +214,12 @@ impl Machine {
 
     fn exec_add(&mut self) {
         self.fetch();
-        self.ac = self.ac.wrapping_add(self.read(self.ri));
+        let operand = self.read(self.ri);
+        let (result, carry) = self.ac.overflowing_add(operand);
+        let (_, overflow) = (self.ac as i8).overflowing_add(operand as i8);
+        self.ac = result;
+        self.overflow = overflow;
+        self.carry = carry;
     }
 
     fn exec_or(&mut self) {
@@ -176,6 +236,16 @@ impl Machine {
         self.ac = !self.ac;
     }
 
+    fn exec_sub(&mut self) {
+        self.fetch();
+        let operand = self.read(self.ri);
+        let (result, borrow) = self.ac.overflowing_sub(operand);
+        let (_, overflow) = (self.ac as i8).overflowing_sub(operand as i8);
+        self.ac = result;
+        self.overflow = overflow;
+        self.borrow = borrow;
+    }
+
     fn exec_jmp(&mut self) {
         self.fetch();
         self.pc = self.ri;
@@ -188,11 +258,91 @@ impl Machine {
         }
     }
 
+    fn exec_jp(&mut self) {
+        self.fetch();
+        if self.ac & 0x80 == 0 {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jv(&mut self) {
+        self.fetch();
+        if self.overflow {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jnv(&mut self) {
+        self.fetch();
+        if !self.overflow {
+            self.pc = self.ri;
+        }
+    }
+
     fn exec_jz(&mut self) {
         self.fetch();
         if self.ac == 0 {
             self.pc = self.ri;
         }
+    }
+
+    fn exec_jnz(&mut self) {
+        self.fetch();
+        if self.ac != 0 {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jc(&mut self) {
+        self.fetch();
+        if self.carry {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jnc(&mut self) {
+        self.fetch();
+        if !self.carry {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jb(&mut self) {
+        self.fetch();
+        if self.borrow {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_jnb(&mut self) {
+        self.fetch();
+        if !self.borrow {
+            self.pc = self.ri;
+        }
+    }
+
+    fn exec_shr(&mut self) {
+        self.carry = self.ac & 0x1 != 0;
+        self.ac >>= 1;
+    }
+
+    fn exec_shl(&mut self) {
+        self.carry = self.ac & 0x80 != 0;
+        self.ac <<= 1;
+    }
+
+    fn exec_ror(&mut self) {
+        let prev_carry = if self.carry { 0x80 } else { 0x0 };
+        self.carry = self.ac & 0x1 != 0;
+        self.ac >>= 1;
+        self.ac |= prev_carry;
+    }
+
+    fn exec_rol(&mut self) {
+        let prev_carry = if self.carry { 0x1 } else { 0x0 };
+        self.carry = self.ac & 0x80 != 0;
+        self.ac <<= 1;
+        self.ac |= prev_carry;
     }
 
     fn exec_hlt(&mut self) {
@@ -396,17 +546,26 @@ impl Machine {
     {
         let flag_n = self.ac >> 7;
         let flag_z = if self.ac == 0 { 1 } else { 0 };
+        let flag_v = if self.overflow { 1 } else { 0 };
+        let flag_c = if self.carry { 1 } else { 0 };
+        let flag_b = if self.borrow { 1 } else { 0 };
 
         if hex {
             write!(output, "ac = {:02X}\n", self.ac)?;
             write!(output, "pc = {:02X}\n", self.pc)?;
             write!(output, "n  = {:02X}\n", flag_n)?;
             write!(output, "z  = {:02X}\n", flag_z)?;
+            write!(output, "v  = {:02X}\n", flag_v)?;
+            write!(output, "c  = {:02X}\n", flag_c)?;
+            write!(output, "b  = {:02X}\n", flag_b)?;
         } else {
             write!(output, "ac = {:03}\n", self.ac)?;
             write!(output, "pc = {:03}\n", self.pc)?;
             write!(output, "n  = {:03}\n", flag_n)?;
             write!(output, "z  = {:03}\n", flag_z)?;
+            write!(output, "v  = {:02X}\n", flag_v)?;
+            write!(output, "c  = {:02X}\n", flag_c)?;
+            write!(output, "b  = {:02X}\n", flag_b)?;
         }
 
         Ok(())
@@ -443,6 +602,9 @@ impl Default for Machine {
             ri: 0,
             pc: 0,
             ac: 0,
+            overflow: false,
+            carry: false,
+            borrow: false,
             mem: [0; 256],
             cycling: false,
             cycles: 0,

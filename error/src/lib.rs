@@ -16,5 +16,5 @@ impl fmt::Display for WithPath {
 }
 
 #[derive(Debug, Failure)]
-#[fail(display = "Arquivo inválido ou corrompido")]
+#[fail(display = "Invalid or corrupted file")]
 pub struct InvalidFile;
