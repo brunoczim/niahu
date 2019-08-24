@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod test;
 
+use error::{Fallible, InvalidFile, WithPath};
 use std::{
     fmt,
     fs::File,
@@ -10,10 +11,10 @@ use std::{
 
 /// Opcode of NOP
 pub const NOP: u8 = 0x0;
-/// Opcode of LDA _addr_
-pub const LDA: u8 = 0x10;
 /// Opcode of STA _addr_
-pub const STA: u8 = 0x20;
+pub const STA: u8 = 0x10;
+/// Opcode of LDA _addr_
+pub const LDA: u8 = 0x20;
 /// Opcode of ADD _addr_
 pub const ADD: u8 = 0x30;
 /// Opcode of OR _addr_
@@ -58,8 +59,8 @@ impl InstrInfo {
     pub fn new(opcode: u8) -> Option<Self> {
         match opcode & 0xF0 {
             NOP => Some(Self { mnemonic: "NOP", needs_operand: false }),
-            LDA => Some(Self { mnemonic: "LDA", needs_operand: true }),
             STA => Some(Self { mnemonic: "STA", needs_operand: true }),
+            LDA => Some(Self { mnemonic: "LDA", needs_operand: true }),
             ADD => Some(Self { mnemonic: "ADD", needs_operand: true }),
             OR => Some(Self { mnemonic: "OR", needs_operand: true }),
             AND => Some(Self { mnemonic: "AND", needs_operand: true }),
@@ -120,8 +121,8 @@ impl Machine {
     pub fn decode_exec(&mut self) {
         match self.ri & 0xF0 {
             NOP => self.exec_nop(),
-            LDA => self.exec_lda(),
             STA => self.exec_sta(),
+            LDA => self.exec_lda(),
             ADD => self.exec_add(),
             OR => self.exec_or(),
             AND => self.exec_and(),
@@ -136,14 +137,14 @@ impl Machine {
 
     fn exec_nop(&mut self) {}
 
-    fn exec_lda(&mut self) {
-        self.fetch();
-        self.ac = self.read(self.ri);
-    }
-
     fn exec_sta(&mut self) {
         self.fetch();
         self.write(self.ri, self.ac);
+    }
+
+    fn exec_lda(&mut self) {
+        self.fetch();
+        self.ac = self.read(self.ri);
     }
 
     fn exec_add(&mut self) {
@@ -188,7 +189,7 @@ impl Machine {
         self.cycling = false;
     }
 
-    pub fn save_mem<W>(&self, mut output: W) -> io::Result<()>
+    pub fn save_mem<W>(&self, mut output: W) -> Fallible<()>
     where
         W: Write,
     {
@@ -201,7 +202,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn load_mem<R>(&mut self, mut input: R) -> io::Result<()>
+    pub fn load_mem<R>(&mut self, mut input: R) -> Fallible<()>
     where
         R: Read,
     {
@@ -221,7 +222,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn save_state<W>(&self, mut output: W) -> io::Result<()>
+    pub fn save_state<W>(&self, mut output: W) -> Fallible<()>
     where
         W: Write,
     {
@@ -239,7 +240,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn load_state<R>(&mut self, mut input: R) -> io::Result<()>
+    pub fn load_state<R>(&mut self, mut input: R) -> Fallible<()>
     where
         R: Read,
     {
@@ -270,34 +271,42 @@ impl Machine {
         Ok(())
     }
 
-    pub fn save_at_path<P>(&self, path: &P) -> io::Result<()>
+    pub fn save_at_path<P>(&self, path: &P) -> Fallible<()>
     where
         P: AsRef<Path> + ?Sized,
     {
         let file = File::create(path.as_ref())?;
 
-        if is_mem_file(path) {
+        let res = if is_mem_file(path) {
             self.save_mem(file)
         } else if is_state_file(path) {
             self.save_state(file)
         } else {
-            make_error()
-        }
+            Err(InvalidFile.into())
+        };
+
+        res.map_err(|error| {
+            WithPath { path: path.as_ref().into(), error }.into()
+        })
     }
 
-    pub fn load_from_path<P>(&mut self, path: &P) -> io::Result<()>
+    pub fn load_from_path<P>(&mut self, path: &P) -> Fallible<()>
     where
         P: AsRef<Path> + ?Sized,
     {
         let file = File::open(path.as_ref())?;
 
-        if is_mem_file(path) {
+        let res = if is_mem_file(path) {
             self.load_mem(file)
         } else if is_state_file(path) {
             self.load_state(file)
         } else {
-            make_error()
-        }
+            Err(InvalidFile.into())
+        };
+
+        res.map_err(|error| {
+            WithPath { path: path.as_ref().into(), error }.into()
+        })
     }
 
     pub fn display_mem_data<W, B>(
@@ -305,7 +314,7 @@ impl Machine {
         bounds: B,
         mut output: W,
         hex: bool,
-    ) -> io::Result<()>
+    ) -> Fallible<()>
     where
         B: IntoIterator<Item = u8>,
         W: Write,
@@ -334,7 +343,7 @@ impl Machine {
         bounds: B,
         mut output: W,
         hex: bool,
-    ) -> io::Result<()>
+    ) -> Fallible<()>
     where
         B: IntoIterator<Item = u8>,
         W: Write,
@@ -371,7 +380,7 @@ impl Machine {
         &mut self,
         mut output: W,
         hex: bool,
-    ) -> io::Result<()>
+    ) -> Fallible<()>
     where
         W: Write,
     {
@@ -386,7 +395,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn display_stats<W>(&mut self, mut output: W) -> io::Result<()>
+    pub fn display_stats<W>(&mut self, mut output: W) -> Fallible<()>
     where
         W: Write,
     {

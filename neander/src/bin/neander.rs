@@ -1,3 +1,4 @@
+use error::{Fallible, WithPath};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -103,7 +104,7 @@ fn main() {
     }
 }
 
-fn try_main() -> io::Result<()> {
+fn try_main() -> Fallible<()> {
     match Command::from_args() {
         Command::New { output } => subcommand_new(output),
 
@@ -131,7 +132,7 @@ fn try_main() -> io::Result<()> {
     }
 }
 
-fn subcommand_new(output: PathBuf) -> io::Result<()> {
+fn subcommand_new(output: PathBuf) -> Fallible<()> {
     let vm = neander::Machine::new();
     vm.save_at_path(&output)?;
     Ok(())
@@ -143,7 +144,7 @@ fn subcommand_write(
     hex: bool,
     addr: String,
     data: String,
-) -> io::Result<()> {
+) -> Fallible<()> {
     let addr = parse_dec_or_hex(&addr, hex)?;
     let data = parse_dec_or_hex(&data, hex)?;
     let mut vm = neander::Machine::new();
@@ -155,7 +156,7 @@ fn subcommand_write(
     Ok(())
 }
 
-fn subcommand_run(input: PathBuf, output: Option<PathBuf>) -> io::Result<()> {
+fn subcommand_run(input: PathBuf, output: Option<PathBuf>) -> Fallible<()> {
     let mut vm = neander::Machine::new();
 
     vm.load_from_path(&input)?;
@@ -169,7 +170,7 @@ fn subcommand_step(
     input: PathBuf,
     output: Option<PathBuf>,
     steps: u64,
-) -> io::Result<()> {
+) -> Fallible<()> {
     let mut vm = neander::Machine::new();
 
     vm.load_from_path(&input)?;
@@ -186,7 +187,7 @@ fn subcommand_data(
     hex: bool,
     start: Option<String>,
     end: Option<String>,
-) -> io::Result<()> {
+) -> Fallible<()> {
     let start = start.map_or(Ok(128), |s| parse_dec_or_hex(&s, hex))?;
     let end = end.map_or(Ok(255), |s| parse_dec_or_hex(&s, hex))?;
     let mut vm = neander::Machine::new();
@@ -202,7 +203,7 @@ fn subcommand_code(
     hex: bool,
     start: Option<String>,
     end: Option<String>,
-) -> io::Result<()> {
+) -> Fallible<()> {
     let start = start.map_or(Ok(0), |s| parse_dec_or_hex(&s, hex))?;
     let end = end.map_or(Ok(127), |s| parse_dec_or_hex(&s, hex))?;
     let mut vm = neander::Machine::new();
@@ -213,7 +214,7 @@ fn subcommand_code(
     Ok(())
 }
 
-fn subcommand_regs(input: PathBuf, hex: bool) -> io::Result<()> {
+fn subcommand_regs(input: PathBuf, hex: bool) -> Fallible<()> {
     let mut vm = neander::Machine::new();
 
     vm.load_from_path(&input)?;
@@ -222,7 +223,7 @@ fn subcommand_regs(input: PathBuf, hex: bool) -> io::Result<()> {
     Ok(())
 }
 
-fn subcommand_stats(input: PathBuf) -> io::Result<()> {
+fn subcommand_stats(input: PathBuf) -> Fallible<()> {
     let mut vm = neander::Machine::new();
 
     vm.load_from_path(&input)?;
@@ -238,7 +239,7 @@ fn resolve_output<'args>(
     output_arg.as_ref().map_or(input, |buf| &**buf)
 }
 
-fn parse_dec_or_hex(num: &str, hex: bool) -> io::Result<u8> {
+fn parse_dec_or_hex(num: &str, hex: bool) -> Fallible<u8> {
     u8::from_str_radix(num, if hex { 16 } else { 10 })
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
+        .map_err(|e| WithPath { path: num.into(), error: e.into() }.into())
 }
