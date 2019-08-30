@@ -78,36 +78,36 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct InstrInfo {
     pub mnemonic: &'static str,
-    pub needs_operand: bool,
+    pub operand: bool,
 }
 
 impl InstrInfo {
     pub fn new(opcode: u8) -> Option<Self> {
         match (opcode & 0xF0, opcode & 0xFC, opcode) {
-            (NOP, ..) => Some(Self { mnemonic: "NOP", needs_operand: false }),
-            (STA, ..) => Some(Self { mnemonic: "STA", needs_operand: true }),
-            (LDA, ..) => Some(Self { mnemonic: "LDA", needs_operand: true }),
-            (ADD, ..) => Some(Self { mnemonic: "ADD", needs_operand: true }),
-            (OR, ..) => Some(Self { mnemonic: "OR", needs_operand: true }),
-            (AND, ..) => Some(Self { mnemonic: "AND", needs_operand: true }),
-            (NOT, ..) => Some(Self { mnemonic: "NOT", needs_operand: false }),
-            (SUB, ..) => Some(Self { mnemonic: "SUB", needs_operand: true }),
-            (_, JMP, _) => Some(Self { mnemonic: "JMP", needs_operand: true }),
-            (_, JN, _) => Some(Self { mnemonic: "JN", needs_operand: true }),
-            (_, JP, _) => Some(Self { mnemonic: "JP", needs_operand: true }),
-            (_, JV, _) => Some(Self { mnemonic: "JV", needs_operand: true }),
-            (_, JNV, _) => Some(Self { mnemonic: "JNV", needs_operand: true }),
-            (_, JZ, _) => Some(Self { mnemonic: "JZ", needs_operand: true }),
-            (_, JNZ, _) => Some(Self { mnemonic: "JNZ", needs_operand: true }),
-            (_, JC, _) => Some(Self { mnemonic: "JC", needs_operand: true }),
-            (_, JNC, _) => Some(Self { mnemonic: "JNC", needs_operand: true }),
-            (_, JB, _) => Some(Self { mnemonic: "JB", needs_operand: true }),
-            (_, JNB, _) => Some(Self { mnemonic: "JNB", needs_operand: true }),
-            (_, _, SHR) => Some(Self { mnemonic: "SHR", needs_operand: false }),
-            (_, _, SHL) => Some(Self { mnemonic: "SHL", needs_operand: false }),
-            (_, _, ROR) => Some(Self { mnemonic: "ROR", needs_operand: false }),
-            (_, _, ROL) => Some(Self { mnemonic: "ROL", needs_operand: false }),
-            (HLT, ..) => Some(Self { mnemonic: "HLT", needs_operand: false }),
+            (NOP, ..) => Some(Self { mnemonic: "NOP", operand: false }),
+            (STA, ..) => Some(Self { mnemonic: "STA", operand: true }),
+            (LDA, ..) => Some(Self { mnemonic: "LDA", operand: true }),
+            (ADD, ..) => Some(Self { mnemonic: "ADD", operand: true }),
+            (OR, ..) => Some(Self { mnemonic: "OR", operand: true }),
+            (AND, ..) => Some(Self { mnemonic: "AND", operand: true }),
+            (NOT, ..) => Some(Self { mnemonic: "NOT", operand: false }),
+            (SUB, ..) => Some(Self { mnemonic: "SUB", operand: true }),
+            (_, JMP, _) => Some(Self { mnemonic: "JMP", operand: true }),
+            (_, JN, _) => Some(Self { mnemonic: "JN", operand: true }),
+            (_, JP, _) => Some(Self { mnemonic: "JP", operand: true }),
+            (_, JV, _) => Some(Self { mnemonic: "JV", operand: true }),
+            (_, JNV, _) => Some(Self { mnemonic: "JNV", operand: true }),
+            (_, JZ, _) => Some(Self { mnemonic: "JZ", operand: true }),
+            (_, JNZ, _) => Some(Self { mnemonic: "JNZ", operand: true }),
+            (_, JC, _) => Some(Self { mnemonic: "JC", operand: true }),
+            (_, JNC, _) => Some(Self { mnemonic: "JNC", operand: true }),
+            (_, JB, _) => Some(Self { mnemonic: "JB", operand: true }),
+            (_, JNB, _) => Some(Self { mnemonic: "JNB", operand: true }),
+            (_, _, SHR) => Some(Self { mnemonic: "SHR", operand: false }),
+            (_, _, SHL) => Some(Self { mnemonic: "SHL", operand: false }),
+            (_, _, ROR) => Some(Self { mnemonic: "ROR", operand: false }),
+            (_, _, ROL) => Some(Self { mnemonic: "ROL", operand: false }),
+            (HLT, ..) => Some(Self { mnemonic: "HLT", operand: false }),
             _ => None,
         }
     }
@@ -525,7 +525,7 @@ impl Machine {
                 needs_operand = false;
             } else {
                 if let Some(info) = InstrInfo::new(self.mem[addr as usize]) {
-                    needs_operand = info.needs_operand;
+                    needs_operand = info.operand;
                     write!(output, "  {}", info.mnemonic)?
                 }
             }

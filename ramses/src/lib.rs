@@ -11,29 +11,37 @@ use std::{
 
 /// Opcode of NOP
 pub const NOP: u8 = 0x0;
-/// Opcode of STA _addr_
+/// Opcode of STA _reg_, _am_
 pub const STA: u8 = 0x10;
-/// Opcode of LDA _addr_
+/// Opcode of LDA _reg_, _am_
 pub const LDA: u8 = 0x20;
-/// Opcode of ADD _addr_
+/// Opcode of ADD _reg_, _am_
 pub const ADD: u8 = 0x30;
-/// Opcode of OR _addr_
+/// Opcode of OR _reg_, _am_
 pub const OR: u8 = 0x40;
-/// Opcode of AND _addr_
+/// Opcode of AND _reg_, _am_
 pub const AND: u8 = 0x50;
-/// Opcode of NOT
+/// Opcode of NOT _reg_
 pub const NOT: u8 = 0x60;
-/// Opcode of JMP _addr_
+/// Opcode of JMP _am_
 pub const JMP: u8 = 0x80;
-/// Opcode of JN _addr_
+/// Opcode of JN _am_
 pub const JN: u8 = 0x90;
-/// Opcode of JZ _addr_
+/// Opcode of JZ _am_
 pub const JZ: u8 = 0xA0;
+/// Opcode of JC _am_
+pub const JC: u8 = 0xB0;
+/// Opcode of JSR _am_
+pub const JSR: u8 = 0xC0;
+/// Opcode of NEG _reg_
+pub const NEG: u8 = 0xD0;
+/// Opcode of SHR _reg_
+pub const SHR: u8 = 0xE0;
 /// Opcode of HLT
 pub const HLT: u8 = 0xF0;
 
-const MEM_HEADER: [u8; 4] = [0x03, 0x4E, 0x44, 0x52];
-const STATE_HEADER: [u8; 4] = [0x04, 0x4E, 0x44, 0x52];
+const MEM_HEADER: [u8; 4] = [0x03, 0x52, 0x4D, 0x53];
+const STATE_HEADER: [u8; 4] = [0x04, 0x52, 0x4D, 0x53];
 
 pub fn is_mem_file<P>(path: &P) -> bool
 where
@@ -52,23 +60,50 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct InstrInfo {
     pub mnemonic: &'static str,
+    pub register: bool,
     pub operand: bool,
 }
 
 impl InstrInfo {
     pub fn new(opcode: u8) -> Option<Self> {
         match opcode & 0xF0 {
-            NOP => Some(Self { mnemonic: "NOP", operand: false }),
-            STA => Some(Self { mnemonic: "STA", operand: true }),
-            LDA => Some(Self { mnemonic: "LDA", operand: true }),
-            ADD => Some(Self { mnemonic: "ADD", operand: true }),
-            OR => Some(Self { mnemonic: "OR", operand: true }),
-            AND => Some(Self { mnemonic: "AND", operand: true }),
-            NOT => Some(Self { mnemonic: "NOT", operand: false }),
-            JMP => Some(Self { mnemonic: "JMP", operand: true }),
-            JN => Some(Self { mnemonic: "JN", operand: true }),
-            JZ => Some(Self { mnemonic: "JZ", operand: true }),
-            HLT => Some(Self { mnemonic: "HLT", operand: false }),
+            NOP => {
+                Some(Self { mnemonic: "NOP", register: false, operand: false })
+            },
+            STA => {
+                Some(Self { mnemonic: "STA", register: true, operand: true })
+            },
+            LDA => {
+                Some(Self { mnemonic: "LDA", register: true, operand: true })
+            },
+            ADD => {
+                Some(Self { mnemonic: "ADD", register: true, operand: true })
+            },
+            OR => Some(Self { mnemonic: "OR", register: true, operand: true }),
+            AND => {
+                Some(Self { mnemonic: "AND", register: true, operand: true })
+            },
+            NOT => {
+                Some(Self { mnemonic: "NOT", register: true, operand: false })
+            },
+            JMP => {
+                Some(Self { mnemonic: "JMP", register: false, operand: true })
+            },
+            JN => Some(Self { mnemonic: "JN", register: false, operand: true }),
+            JZ => Some(Self { mnemonic: "JZ", register: false, operand: true }),
+            JC => Some(Self { mnemonic: "JC", register: false, operand: true }),
+            JSR => {
+                Some(Self { mnemonic: "JSR", register: false, operand: true })
+            },
+            NEG => {
+                Some(Self { mnemonic: "NEG", register: true, operand: false })
+            },
+            SHR => {
+                Some(Self { mnemonic: "SHR", register: true, operand: false })
+            },
+            HLT => {
+                Some(Self { mnemonic: "HLT", register: false, operand: false })
+            },
             _ => None,
         }
     }
@@ -78,7 +113,9 @@ impl InstrInfo {
 pub struct Machine {
     ri: u8,
     pc: u8,
-    ac: u8,
+    ra: u8,
+    rb: u8,
+    rx: u8,
     mem: [u8; 256],
     cycling: bool,
     cycles: u64,
@@ -149,31 +186,31 @@ impl Machine {
 
     fn exec_sta(&mut self) {
         self.fetch();
-        self.write(self.ri, self.ac);
+        self.write(self.ri, self.ra);
     }
 
     fn exec_lda(&mut self) {
         self.fetch();
-        self.ac = self.read(self.ri);
+        self.ra = self.read(self.ri);
     }
 
     fn exec_add(&mut self) {
         self.fetch();
-        self.ac = self.ac.wrapping_add(self.read(self.ri));
+        self.ra = self.ra.wrapping_add(self.read(self.ri));
     }
 
     fn exec_or(&mut self) {
         self.fetch();
-        self.ac |= self.read(self.ri);
+        self.ra |= self.read(self.ri);
     }
 
     fn exec_and(&mut self) {
         self.fetch();
-        self.ac &= self.read(self.ri);
+        self.ra &= self.read(self.ri);
     }
 
     fn exec_not(&mut self) {
-        self.ac = !self.ac;
+        self.ra = !self.ra;
     }
 
     fn exec_jmp(&mut self) {
@@ -183,14 +220,14 @@ impl Machine {
 
     fn exec_jn(&mut self) {
         self.fetch();
-        if self.ac & 0x80 != 0 {
+        if self.ra & 0x80 != 0 {
             self.pc = self.ri;
         }
     }
 
     fn exec_jz(&mut self) {
         self.fetch();
-        if self.ac == 0 {
+        if self.ra == 0 {
             self.pc = self.ri;
         }
     }
@@ -238,7 +275,7 @@ impl Machine {
     {
         output.write_all(&STATE_HEADER)?;
 
-        output.write_all(&[self.ri, self.pc, self.ac])?;
+        output.write_all(&[self.ri, self.pc, self.ra])?;
         output.write_all(&[if self.cycling { 1 } else { 0 }])?;
         output.write_all(&self.cycles.to_le_bytes())?;
         output.write_all(&self.accesses.to_le_bytes())?;
@@ -264,7 +301,7 @@ impl Machine {
 
         self.ri = buf[4];
         self.pc = buf[5];
-        self.ac = buf[6];
+        self.ra = buf[6];
         self.cycling = buf[7] != 0;
 
         input.read_exact(&mut buf)?;
@@ -394,16 +431,16 @@ impl Machine {
     where
         W: Write,
     {
-        let flag_n = self.ac >> 7;
-        let flag_z = if self.ac == 0 { 1 } else { 0 };
+        let flag_n = self.ra >> 7;
+        let flag_z = if self.ra == 0 { 1 } else { 0 };
 
         if hex {
-            write!(output, "ac = {:02X}\n", self.ac)?;
+            write!(output, "ra = {:02X}\n", self.ra)?;
             write!(output, "pc = {:02X}\n", self.pc)?;
             write!(output, "n  = {:02X}\n", flag_n)?;
             write!(output, "z  = {:02X}\n", flag_z)?;
         } else {
-            write!(output, "ac = {:03}\n", self.ac)?;
+            write!(output, "ra = {:03}\n", self.ra)?;
             write!(output, "pc = {:03}\n", self.pc)?;
             write!(output, "n  = {:03}\n", flag_n)?;
             write!(output, "z  = {:03}\n", flag_z)?;
@@ -428,7 +465,9 @@ impl fmt::Debug for Machine {
         fmt.debug_struct("neander::Machine")
             .field("ri", &self.ri)
             .field("pc", &self.pc)
-            .field("ac", &self.ac)
+            .field("ra", &self.ra)
+            .field("rb", &self.rb)
+            .field("rx", &self.rx)
             .field("mem", &(&self.mem as &[u8]))
             .field("cycling", &self.cycling)
             .field("cycles", &self.cycles)
@@ -442,7 +481,9 @@ impl Default for Machine {
         Self {
             ri: 0,
             pc: 0,
-            ac: 0,
+            ra: 0,
+            rb: 0,
+            rx: 0,
             mem: [0; 256],
             cycling: false,
             cycles: 0,
@@ -455,7 +496,7 @@ impl PartialEq for Machine {
     fn eq(&self, other: &Self) -> bool {
         self.ri == other.ri
             && self.pc == other.pc
-            && self.ac == other.ac
+            && self.ra == other.ra
             && self.cycling == other.cycling
             && self.cycles == other.cycles
             && self.accesses == other.accesses
