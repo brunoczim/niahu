@@ -1,28 +1,37 @@
 use super::*;
 
 #[test]
-fn sub_algo() {
+fn string_size() {
     let mut vm = Machine::new();
-    vm.mem[0x0] = LDR;
-    vm.mem[0x1] = 0x81;
-    vm.mem[0x2] = NOT;
-    vm.mem[0x3] = ADD;
-    vm.mem[0x4] = 0x83;
-    vm.mem[0x5] = ADD;
-    vm.mem[0x6] = 0x80;
-    vm.mem[0x7] = STR;
-    vm.mem[0x8] = 0x82;
-    vm.mem[0x9] = HLT;
+    vm.mem[0x1] = LDR | REG_A << 2 | MODE_IMMEDIATE;
+    vm.mem[0x2] = 0;
+    vm.mem[0x3] = LDR | REG_X << 2;
+    vm.mem[0x4] = 0x80;
+    vm.mem[0x5] = LDR | REG_B << 2 | MODE_INDEXED;
+    vm.mem[0x6] = 0;
+    vm.mem[0x7] = JZ;
+    vm.mem[0x8] = 0xF;
+    vm.mem[0x9] = ADD | REG_X << 2 | MODE_IMMEDIATE;
+    vm.mem[0xA] = 1;
+    vm.mem[0xB] = ADD | REG_A << 2 | MODE_IMMEDIATE;
+    vm.mem[0xC] = 1;
+    vm.mem[0xD] = JMP;
+    vm.mem[0xE] = 0x5;
+    vm.mem[0xF] = STR | REG_A << 2;
+    vm.mem[0x10] = 0x81;
+    vm.mem[0x11] = HLT;
 
-    vm.mem[0x80] = 150;
-    vm.mem[0x81] = 3;
-    vm.mem[0x83] = 1;
+    vm.mem[0x80] = 0xA0;
+
+    vm.mem[0xA0] = 100;
+    vm.mem[0xA1] = 99;
+    vm.mem[0xA2] = 98;
+    vm.mem[0xA3] = 97;
+    vm.mem[0xA4] = 0;
 
     vm.execute();
 
-    assert_eq!(vm.mem[0x82], 147);
-    assert_eq!(vm.cycles, 6);
-    assert_eq!(vm.accesses, 14);
+    assert_eq!(vm.mem[0x81], 4);
 }
 
 #[test]

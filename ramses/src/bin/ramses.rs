@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "ramses",
-    about = "Multiplatform Simulator of Neander Hypothetical Machine"
+    about = "Multiplatform Simulator of Ramses Hypothetical Machine"
 )]
 enum Command {
     /// Creates a new zeroed memory or a zeroed state

@@ -47,6 +47,17 @@ Se você deseja instalá-lo em outro lugar, use:
 cargo install --path ahmes --root caminho/diretorio/escolhido
 ```
 
+### Ramses
+Após o download:
+```shell
+cargo install --path ramses
+```
+Isso instalará um binário chamado `ahmes` no caminho `~/.cargo/bin/`.
+Se você deseja instalá-lo em outro lugar, use:
+```shell
+cargo install --path ramses --root caminho/diretorio/escolhido
+```
+
 # Uso
 
 Além do arquivo .mem habitual, a implementação trabalha com um arquivo .state, que
