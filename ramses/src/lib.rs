@@ -120,6 +120,72 @@ impl InstrInfo {
     }
 }
 
+fn debug_reg_name<W>(mut output: W, reg: u8) -> Fallible<()>
+where
+    W: Write,
+{
+    match reg {
+        REG_A => write!(output, "A")?,
+        REG_B => write!(output, "B")?,
+        REG_X => write!(output, "X")?,
+        _ => write!(output, "?")?,
+    }
+
+    Ok(())
+}
+
+fn debug_mode<W>(
+    mut output: W,
+    mode: u8,
+    operand: u8,
+    hex: bool,
+) -> Fallible<()>
+where
+    W: Write,
+{
+    if hex {
+        match mode & 0x3 {
+            MODE_DIRECT => write!(output, "{:02X}", operand)?,
+            MODE_INDIRECT => write!(output, "{:02X}, i", operand)?,
+            MODE_IMMEDIATE => write!(output, "#{:02X}", operand)?,
+            MODE_INDEXED => write!(output, "{:02X}, X", operand)?,
+            _ => unreachable!(),
+        }
+    } else {
+        match mode & 0x3 {
+            MODE_DIRECT => write!(output, "{:03}", operand)?,
+            MODE_INDIRECT => write!(output, "{:03}, i", operand)?,
+            MODE_IMMEDIATE => write!(output, "#{:03}", operand)?,
+            MODE_INDEXED => write!(output, "{:03}, X", operand)?,
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
+}
+
+fn debug_mnemonic<W>(
+    mut output: W,
+    instruction: u8,
+    operand: u8,
+    hex: bool,
+) -> Fallible<bool>
+where
+    W: Write,
+{
+    if let Some(info) = InstrInfo::new(instruction) {
+        write!(output, "  {} ", info.mnemonic)?;
+        debug_reg_name(&mut output, instruction >> 2 & 0x3)?;
+        if info.operand {
+            write!(output, ", ")?;
+            debug_mode(&mut output, instruction & 0x3, operand, hex)?;
+        }
+        Ok(info.operand)
+    } else {
+        Ok(false)
+    }
+}
+
 #[derive(Clone)]
 pub struct Machine {
     ri: u8,
@@ -181,17 +247,21 @@ impl Machine {
         }
     }
 
-    fn resolve_mode(&mut self) -> u8 {
-        match self.rm {
-            MODE_DIRECT => self.read(self.ri),
+    fn fetch_mode_addr(&mut self) -> u8 {
+        let addr = match self.rm {
+            MODE_DIRECT => self.read(self.pc),
             MODE_INDIRECT => {
-                let addr = self.read(self.ri);
+                let addr = self.read(self.pc);
                 self.read(addr)
             },
-            MODE_IMMEDIATE => self.ri,
-            MODE_INDEXED => self.read(self.ri).wrapping_add(self.rx),
+            MODE_IMMEDIATE => self.pc,
+            MODE_INDEXED => self.read(self.pc).wrapping_add(self.rx),
             _ => panic!("Invalid mode, but no space for the user to give it"),
-        }
+        };
+
+        self.pc = self.pc.wrapping_add(1);
+
+        addr
     }
 
     pub fn set_pc(&mut self, data: u8) {
@@ -250,22 +320,19 @@ impl Machine {
     fn exec_nop(&mut self) {}
 
     fn exec_str(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let data = self.read_register();
         self.write(addr, data);
     }
 
     fn exec_ldr(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let data = self.read(addr);
         self.write_register(data);
     }
 
     fn exec_add(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let left = self.read_register();
         let right = self.read(addr);
         let (result, carry) = left.overflowing_add(right);
@@ -274,16 +341,14 @@ impl Machine {
     }
 
     fn exec_or(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let left = self.read_register();
         let right = self.read(addr);
         self.write_register(left | right);
     }
 
     fn exec_and(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let left = self.read_register();
         let right = self.read(addr);
         self.write_register(left & right);
@@ -295,8 +360,7 @@ impl Machine {
     }
 
     fn exec_sub(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         let left = self.read_register();
         let right = self.read(addr);
         let (result, borrow) = left.overflowing_sub(right);
@@ -305,37 +369,32 @@ impl Machine {
     }
 
     fn exec_jmp(&mut self) {
-        self.fetch();
-        self.pc = self.resolve_mode();
+        self.pc = self.fetch_mode_addr();
     }
 
     fn exec_jn(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         if self.negative {
             self.pc = addr;
         }
     }
 
     fn exec_jz(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         if self.zero {
             self.pc = addr;
         }
     }
 
     fn exec_jc(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         if self.carry {
             self.pc = addr;
         }
     }
 
     fn exec_jsr(&mut self) {
-        self.fetch();
-        let addr = self.resolve_mode();
+        let addr = self.fetch_mode_addr();
         self.write(addr, self.pc);
         self.pc = addr.wrapping_add(1);
     }
@@ -347,7 +406,6 @@ impl Machine {
     }
 
     fn exec_shr(&mut self) {
-        self.fetch();
         let data = self.read_register();
         self.carry = data & 1 != 0;
         self.write_register(data >> 1);
@@ -399,6 +457,7 @@ impl Machine {
         output.write_all(&[self.ri, self.pc, self.ra])?;
         output.write_all(&[if self.negative { 1 } else { 0 }])?;
         output.write_all(&[if self.zero { 1 } else { 0 }])?;
+        output.write_all(&[if self.carry { 1 } else { 0 }])?;
         output.write_all(&[if self.cycling { 1 } else { 0 }])?;
         output.write_all(&self.cycles.to_le_bytes())?;
         output.write_all(&self.accesses.to_le_bytes())?;
@@ -540,10 +599,12 @@ impl Machine {
             if needs_operand {
                 needs_operand = false;
             } else {
-                if let Some(info) = InstrInfo::new(self.mem[addr as usize]) {
-                    needs_operand = info.operand;
-                    write!(output, "  {}", info.mnemonic)?
-                }
+                needs_operand = debug_mnemonic(
+                    &mut output,
+                    self.mem[addr as usize],
+                    self.mem[addr as usize + 1],
+                    hex,
+                )?;
             }
 
             write!(output, "\n")?;
@@ -562,17 +623,24 @@ impl Machine {
     {
         let flag_n = self.ra >> 7;
         let flag_z = if self.ra == 0 { 1 } else { 0 };
+        let flag_c = if self.carry { 1 } else { 0 };
 
         if hex {
             write!(output, "ra = {:02X}\n", self.ra)?;
+            write!(output, "rb = {:02X}\n", self.rb)?;
+            write!(output, "rx = {:02X}\n", self.rx)?;
             write!(output, "pc = {:02X}\n", self.pc)?;
             write!(output, "n  = {:02X}\n", flag_n)?;
             write!(output, "z  = {:02X}\n", flag_z)?;
+            write!(output, "c  = {:02X}\n", flag_c)?;
         } else {
             write!(output, "ra = {:03}\n", self.ra)?;
+            write!(output, "rb = {:03}\n", self.rb)?;
+            write!(output, "rx = {:03}\n", self.rx)?;
             write!(output, "pc = {:03}\n", self.pc)?;
             write!(output, "n  = {:03}\n", flag_n)?;
             write!(output, "z  = {:03}\n", flag_z)?;
+            write!(output, "c  = {:03}\n", flag_c)?;
         }
 
         Ok(())
@@ -591,12 +659,17 @@ impl Machine {
 
 impl fmt::Debug for Machine {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("neander::Machine")
+        fmt.debug_struct("ramses::Machine")
             .field("ri", &self.ri)
+            .field("rr", &self.rr)
+            .field("rm", &self.rm)
             .field("pc", &self.pc)
             .field("ra", &self.ra)
             .field("rb", &self.rb)
             .field("rx", &self.rx)
+            .field("negative", &self.negative)
+            .field("zero", &self.zero)
+            .field("carry", &self.carry)
             .field("mem", &(&self.mem as &[u8]))
             .field("cycling", &self.cycling)
             .field("cycles", &self.cycles)
@@ -629,8 +702,14 @@ impl Default for Machine {
 impl PartialEq for Machine {
     fn eq(&self, other: &Self) -> bool {
         self.ri == other.ri
+            && self.rr == other.rr
+            && self.rm == other.rm
             && self.pc == other.pc
             && self.ra == other.ra
+            && self.rb == other.rb
+            && self.rx == other.rx
+            && self.negative == other.negative
+            && self.carry == other.carry
             && self.cycling == other.cycling
             && self.cycles == other.cycles
             && self.accesses == other.accesses

@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn sub_algo() {
     let mut vm = Machine::new();
-    vm.mem[0x0] = LDA;
+    vm.mem[0x0] = LDR;
     vm.mem[0x1] = 0x81;
     vm.mem[0x2] = NOT;
     vm.mem[0x3] = ADD;
     vm.mem[0x4] = 0x83;
     vm.mem[0x5] = ADD;
     vm.mem[0x6] = 0x80;
-    vm.mem[0x7] = STA;
+    vm.mem[0x7] = STR;
     vm.mem[0x8] = 0x82;
     vm.mem[0x9] = HLT;
 
@@ -28,27 +28,27 @@ fn sub_algo() {
 #[test]
 fn mul_algo() {
     let mut vm = Machine::new();
-    vm.mem[0x0] = LDA;
+    vm.mem[0x0] = LDR;
     vm.mem[0x1] = 0x85;
-    vm.mem[0x2] = STA;
+    vm.mem[0x2] = STR;
     vm.mem[0x3] = 0x82;
-    vm.mem[0x4] = LDA;
+    vm.mem[0x4] = LDR;
     vm.mem[0x5] = 0x81;
-    vm.mem[0x6] = STA;
+    vm.mem[0x6] = STR;
     vm.mem[0x7] = 0x83;
     vm.mem[0x8] = JZ;
     vm.mem[0x9] = 0x18;
     vm.mem[0xA] = ADD;
     vm.mem[0xB] = 0x84;
-    vm.mem[0xC] = STA;
+    vm.mem[0xC] = STR;
     vm.mem[0xD] = 0x83;
-    vm.mem[0xE] = LDA;
+    vm.mem[0xE] = LDR;
     vm.mem[0xF] = 0x80;
     vm.mem[0x10] = ADD;
     vm.mem[0x11] = 0x82;
-    vm.mem[0x12] = STA;
+    vm.mem[0x12] = STR;
     vm.mem[0x13] = 0x82;
-    vm.mem[0x14] = LDA;
+    vm.mem[0x14] = LDR;
     vm.mem[0x15] = 0x83;
     vm.mem[0x16] = JMP;
     vm.mem[0x17] = 0x8;
@@ -69,19 +69,19 @@ fn mul_algo() {
 #[test]
 fn is_pos() {
     let mut vm = Machine::new();
-    vm.mem[0x0] = LDA;
+    vm.mem[0x0] = LDR;
     vm.mem[0x1] = 0x80;
     vm.mem[0x2] = NOT;
     vm.mem[0x3] = JN;
     vm.mem[0x4] = 0xA;
-    vm.mem[0x5] = LDA;
+    vm.mem[0x5] = LDR;
     vm.mem[0x6] = 0x83;
-    vm.mem[0x7] = STA;
+    vm.mem[0x7] = STR;
     vm.mem[0x8] = 0x81;
     vm.mem[0x9] = HLT;
-    vm.mem[0xA] = LDA;
+    vm.mem[0xA] = LDR;
     vm.mem[0xB] = 0x82;
-    vm.mem[0xC] = STA;
+    vm.mem[0xC] = STR;
     vm.mem[0xD] = 0x81;
     vm.mem[0xE] = HLT;
 

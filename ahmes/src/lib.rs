@@ -389,6 +389,8 @@ impl Machine {
         output.write_all(&STATE_HEADER)?;
 
         output.write_all(&[self.ri, self.pc, self.ac])?;
+        output.write_all(&[if self.carry { 1 } else { 0 }])?;
+        output.write_all(&[if self.borrow { 1 } else { 0 }])?;
         output.write_all(&[if self.cycling { 1 } else { 0 }])?;
         output.write_all(&self.cycles.to_le_bytes())?;
         output.write_all(&self.accesses.to_le_bytes())?;
@@ -415,7 +417,10 @@ impl Machine {
         self.ri = buf[4];
         self.pc = buf[5];
         self.ac = buf[6];
-        self.cycling = buf[7] != 0;
+        self.carry = buf[7] != 0;
+        input.read_exact(&mut buf[.. 2])?;
+        self.borrow = buf[0] != 0;
+        self.cycling = buf[1] != 0;
 
         input.read_exact(&mut buf)?;
         self.cycles = u64::from_le_bytes(buf);
@@ -618,6 +623,8 @@ impl PartialEq for Machine {
         self.ri == other.ri
             && self.pc == other.pc
             && self.ac == other.ac
+            && self.overflow == other.overflow
+            && self.carry == other.carry
             && self.cycling == other.cycling
             && self.cycles == other.cycles
             && self.accesses == other.accesses
