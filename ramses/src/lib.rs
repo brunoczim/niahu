@@ -174,10 +174,16 @@ where
     W: Write,
 {
     if let Some(info) = InstrInfo::new(instruction) {
-        write!(output, "  {} ", info.mnemonic)?;
-        debug_reg_name(&mut output, instruction >> 2 & 0x3)?;
+        write!(output, "  {}", info.mnemonic)?;
+        if info.register {
+            write!(output, " ")?;
+            debug_reg_name(&mut output, instruction >> 2 & 0x3)?;
+        }
         if info.operand {
-            write!(output, ", ")?;
+            if info.register {
+                write!(output, ",")?;
+            }
+            write!(output, " ")?;
             debug_mode(&mut output, instruction & 0x3, operand, hex)?;
         }
         Ok(info.operand)
