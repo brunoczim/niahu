@@ -70,7 +70,7 @@ fn is_comment_start(ch: u8) -> bool {
 
 /// Tests if the byte is a character that starts an identifier.
 fn is_ident_start(ch: u8) -> bool {
-    ch.is_ascii_alphabetic()
+    ch.is_ascii_alphabetic() || ch == b'_'
 }
 
 /// Tests if the byte is a character that starts an identifier.
