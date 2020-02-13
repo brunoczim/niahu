@@ -37,21 +37,32 @@ impl<'buf> SrcIter<'buf> {
     }
 }
 
+/// A position in the source code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SrcPosition<'buf> {
+    /// Character in this position.
+    pub ch: u8,
+    /// Buffer from the current position until the end.
+    pub buffer: &'buf [u8],
+    /// Location of this position in line and column number.
+    pub location: Location,
+}
+
 impl<'buf> Iterator for SrcIter<'buf> {
-    type Item = (u8, Location);
+    type Item = SrcPosition<'buf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|&byte| {
-            let loc = self.curr_loc;
+        let buffer = self.inner.as_slice();
+        let &ch = self.inner.next()?;
+        let loc = self.curr_loc;
 
-            if byte == b'\n' {
-                self.curr_loc.line += 1;
-                self.curr_loc.column = 1;
-            } else {
-                self.curr_loc.column += 1;
-            }
+        if ch == b'\n' {
+            self.curr_loc.line += 1;
+            self.curr_loc.column = 1;
+        } else {
+            self.curr_loc.column += 1;
+        }
 
-            (byte, loc)
-        })
+        Some(SrcPosition { ch, buffer, location: self.curr_loc })
     }
 }
