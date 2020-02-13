@@ -23,23 +23,32 @@ impl fmt::Display for BadChar {
     }
 }
 
+/// A kind of a token.
 #[derive(Debug, Clone)]
 pub enum TokenKind {
+    /// This token is whitespace.
     Whitespace,
+    /// This token is a newline.
     Newline,
 }
 
+/// A token, with a given kind and location of occurence.
 #[derive(Debug, Clone)]
 pub struct Token {
+    /// Kind of this token.
     pub kind: TokenKind,
+    /// Location of this token's occurence.
     pub location: Location,
 }
 
+/// A lexer. Translates bytes to tokens.
 #[derive(Debug, Clone)]
 pub struct Lexer<'buf> {
+    /// Iterator over source code bytes.
     src_iter: Peekable<SrcIter<'buf>>,
 }
 
+/// Tests if the byte is a whitespace character.
 fn is_whitespace(ch: u8) -> bool {
     match ch {
         b' ' | b'\t' | b'\r' => true,
@@ -47,20 +56,24 @@ fn is_whitespace(ch: u8) -> bool {
     }
 }
 
+/// Tests if the byte is a newline character.
 fn is_newline(ch: u8) -> bool {
     ch == b'\n'
 }
 
+/// Tests if the byte is a character that starts a comment.
 fn is_comment_start(ch: u8) -> bool {
     ch == b';'
 }
 
 impl<'buf> Lexer<'buf> {
+    /// Handles the case of an error. Advances the cursor after the error.
     fn handle_error<T>(&mut self, ch: u8, location: Location) -> Fallible<T> {
         self.src_iter.next();
         Err(BadChar { ch, location })?
     }
 
+    /// Handles the case of an incoming whitespace token.
     fn handle_whitespace(&mut self, location: Location) -> Fallible<Token> {
         self.src_iter.next();
         while self.src_iter.peek().map_or(false, |&(ch, _)| is_whitespace(ch)) {
@@ -69,11 +82,13 @@ impl<'buf> Lexer<'buf> {
         Ok(Token { kind: TokenKind::Whitespace, location })
     }
 
+    /// Handles the case of an incoming newline token.
     fn handle_newline(&mut self, location: Location) -> Fallible<Token> {
         self.src_iter.next();
         Ok(Token { kind: TokenKind::Newline, location })
     }
 
+    /// Skips a comment.
     fn skip_comment(&mut self) -> Fallible<()> {
         self.src_iter.next();
         while self.src_iter.peek().map_or(false, |&(ch, _)| !is_newline(ch)) {

@@ -1,7 +1,7 @@
 use std::{fmt, slice};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A location in the source code, specially an error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Location {
     /// Referred line.
     pub line: usize,
@@ -21,13 +21,17 @@ impl fmt::Display for Location {
     }
 }
 
+/// Iterator over source byte-characters.
 #[derive(Debug, Clone)]
 pub struct SrcIter<'buf> {
+    /// Iterator over elements of the slice.
     inner: slice::Iter<'buf, u8>,
+    /// Location of the current character.
     curr_loc: Location,
 }
 
 impl<'buf> SrcIter<'buf> {
+    /// Creates a new iterator from the given source.
     pub fn new(src: &'buf [u8]) -> Self {
         Self { inner: src.iter(), curr_loc: Location::default() }
     }
