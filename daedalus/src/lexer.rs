@@ -32,11 +32,7 @@ pub struct BadHex {
 
 impl fmt::Display for BadHex {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            fmt,
-            "{}: Hex number must end in \"h\" or \"H\"",
-            self.location
-        )
+        write!(fmt, "{}: Hex number must end in \"h\" or \"H\"", self.location)
     }
 }
 
@@ -70,16 +66,29 @@ impl fmt::Display for NumberTooBig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Fail)]
+/// An unterminated string occured in the source.
+pub struct UnterminatedString {
+    /// Place where the error occured.
+    pub location: Location,
+}
+
+impl fmt::Display for UnterminatedString {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}: unterminated string literal", self.location)
+    }
+}
+
 /// A kind of a token.
 #[derive(Debug, Clone)]
 pub enum TokenKind<'buf> {
-    /// This token is whitespace.
+    /// A whitespace char.
     Whitespace,
-    /// This token is a newline.
+    /// Newline mark.
     Newline,
-    /// This token is an idenitifer.
+    /// An idenitifer.
     Ident(&'buf [u8]),
-    /// This token is a number literal.
+    /// A number literal.
     Number(u16),
     /// Just a ':' (colon).
     Colon,
@@ -93,6 +102,18 @@ pub enum TokenKind<'buf> {
     Mult,
     /// Division operator '/'.
     Division,
+    /// Opening parentheses '('.
+    OpenParen,
+    /// Closing parentheses ')'.
+    CloseParen,
+    /// Opening sqr_bracket '['.
+    OpenSqrBracket,
+    /// Closing sqr_bracket ']'.
+    CloseSqrBracket,
+    /// Hash character '#'.
+    Hash,
+    /// A string literal.
+    String(&'buf [u8]),
 }
 
 /// A token, with a given kind and location of occurence.
@@ -115,57 +136,66 @@ impl<'buf> Lexer<'buf> {
     /// Handles the case of an error. Advances the cursor after the error.
     fn handle_error<T>(&mut self, position: SrcPosition<'buf>) -> Fallible<T> {
         self.src_iter.next();
-        Err(BadChar {
-            ch: position.ch,
-            location: position.location,
-        })?
+        Err(BadChar { ch: position.ch, location: position.location })?
     }
 
     /// Handles the case of an incoming whitespace token.
-    fn handle_whitespace(&mut self, position: SrcPosition<'buf>) -> Fallible<Token<'buf>> {
+    fn handle_whitespace(
+        &mut self,
+        position: SrcPosition<'buf>,
+    ) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        while let Some(_) = self.src_iter.peek().filter(|pos| is_whitespace(pos.ch)) {
+        while let Some(_) =
+            self.src_iter.peek().filter(|pos| is_whitespace(pos.ch))
+        {
             self.src_iter.next();
         }
-        Ok(Token {
-            kind: TokenKind::Whitespace,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Whitespace, location: position.location })
     }
 
     /// Handles the case of an incoming newline token.
-    fn handle_newline(&mut self, position: SrcPosition<'buf>) -> Fallible<Token<'buf>> {
+    fn handle_newline(
+        &mut self,
+        position: SrcPosition<'buf>,
+    ) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        Ok(Token {
-            kind: TokenKind::Newline,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Newline, location: position.location })
     }
 
     /// Handles the case of an incoming identifier token.
-    fn handle_ident(&mut self, position: SrcPosition<'buf>) -> Fallible<Token<'buf>> {
+    fn handle_ident(
+        &mut self,
+        position: SrcPosition<'buf>,
+    ) -> Fallible<Token<'buf>> {
         let mut count = 1;
 
         self.src_iter.next();
-        while let Some(_) = self.src_iter.peek().filter(|pos| is_ident_part(pos.ch)) {
+        while let Some(_) =
+            self.src_iter.peek().filter(|pos| is_ident_part(pos.ch))
+        {
             self.src_iter.next();
             count += 1;
         }
 
         Ok(Token {
-            kind: TokenKind::Ident(&position.buffer[..count]),
+            kind: TokenKind::Ident(&position.buffer[.. count]),
             location: position.location,
         })
     }
 
     /// Handles the case of an incoming identifier token.
-    fn handle_number(&mut self, position: SrcPosition<'buf>) -> Fallible<Token<'buf>> {
+    fn handle_number(
+        &mut self,
+        position: SrcPosition<'buf>,
+    ) -> Fallible<Token<'buf>> {
         let mut count = 1;
 
         let mut ch = position.ch;
         let mut hex = false;
         self.src_iter.next();
-        while let Some(&new_pos) = self.src_iter.peek().filter(|_| is_number_part(ch)) {
+        while let Some(&new_pos) =
+            self.src_iter.peek().filter(|_| is_number_part(ch))
+        {
             self.src_iter.next();
             ch = new_pos.ch;
             if is_hex_letter_digit(ch) {
@@ -175,116 +205,167 @@ impl<'buf> Lexer<'buf> {
         }
 
         let num = if hex {
-            if let None = self.src_iter.peek().filter(|pos| is_hex_number_end(pos.ch)) {
-                Err(BadHex {
-                    location: position.location,
-                })?;
+            if let None =
+                self.src_iter.peek().filter(|pos| is_hex_number_end(pos.ch))
+            {
+                Err(BadHex { location: position.location })?;
             }
             self.src_iter.next();
 
             let mut num = 0u16;
-            for &ch in &position.buffer[..count] {
+            for &ch in &position.buffer[.. count] {
                 num = match num
                     .checked_mul(16)
                     .and_then(|num| num.checked_add(read_hex_digit(ch) as u16))
                 {
                     Some(val) => val,
-                    None => Err(NumberTooBig {
-                        location: position.location,
-                    })?,
+                    None => Err(NumberTooBig { location: position.location })?,
                 };
             }
             num
         } else {
-            if let None = self
-                .src_iter
-                .peek()
-                .filter(|pos| !is_hex_number_end(pos.ch))
+            if let None =
+                self.src_iter.peek().filter(|pos| !is_hex_number_end(pos.ch))
             {
-                Err(BadDecimal {
-                    location: position.location,
-                })?;
+                Err(BadDecimal { location: position.location })?;
             }
 
             let mut num = 0u16;
-            for &ch in &position.buffer[..count] {
+            for &ch in &position.buffer[.. count] {
                 num = match num
                     .checked_mul(16)
                     .and_then(|num| num.checked_add(read_dec_digit(ch) as u16))
                 {
                     Some(val) => val,
-                    None => Err(NumberTooBig {
-                        location: position.location,
-                    })?,
+                    None => Err(NumberTooBig { location: position.location })?,
                 };
             }
             num
         };
 
-        Ok(Token {
-            kind: TokenKind::Number(num),
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Number(num), location: position.location })
     }
 
     /// Handles the case of when a colon is found.
     fn handle_colon(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        Ok(Token {
-            kind: TokenKind::Colon,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Colon, location: position.location })
     }
 
     /// Handles the case of when a comma is found.
     fn handle_comma(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        Ok(Token {
-            kind: TokenKind::Comma,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Comma, location: position.location })
     }
 
     /// Handles the case of when a plus is found.
     fn handle_plus(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        Ok(Token {
-            kind: TokenKind::Plus,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Plus, location: position.location })
     }
 
     /// Handles the case of when a minus is found.
     fn handle_minus(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
         self.src_iter.next();
-        Ok(Token {
-            kind: TokenKind::Minus,
-            location: position.location,
-        })
+        Ok(Token { kind: TokenKind::Minus, location: position.location })
     }
 
     /// Handles the case of when a mult is found.
     fn handle_mult(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
         self.src_iter.next();
+        Ok(Token { kind: TokenKind::Mult, location: position.location })
+    }
+
+    /// Handles the case of when a division is found.
+    fn handle_division(
+        &mut self,
+        position: SrcPosition,
+    ) -> Fallible<Token<'buf>> {
+        self.src_iter.next();
+        Ok(Token { kind: TokenKind::Division, location: position.location })
+    }
+
+    /// Handles the case of when an opening parentheses is found.
+    fn handle_open_paren(
+        &mut self,
+        position: SrcPosition,
+    ) -> Fallible<Token<'buf>> {
+        self.src_iter.next();
+        Ok(Token { kind: TokenKind::OpenParen, location: position.location })
+    }
+
+    /// Handles the case of when a closing parentheses is found.
+    fn handle_close_paren(
+        &mut self,
+        position: SrcPosition,
+    ) -> Fallible<Token<'buf>> {
+        self.src_iter.next();
+        Ok(Token { kind: TokenKind::CloseParen, location: position.location })
+    }
+
+    /// Handles the case of when an opening square bracket is found.
+    fn handle_open_sqr_bracket(
+        &mut self,
+        position: SrcPosition,
+    ) -> Fallible<Token<'buf>> {
+        self.src_iter.next();
         Ok(Token {
-            kind: TokenKind::Mult,
+            kind: TokenKind::OpenSqrBracket,
             location: position.location,
         })
     }
 
-    /// Handles the case of when a division is found.
-    fn handle_division(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
+    /// Handles the case of when a closing square bracket is found.
+    fn handle_close_sqr_bracket(
+        &mut self,
+        position: SrcPosition,
+    ) -> Fallible<Token<'buf>> {
         self.src_iter.next();
         Ok(Token {
-            kind: TokenKind::Division,
+            kind: TokenKind::CloseSqrBracket,
             location: position.location,
+        })
+    }
+
+    /// Handles the case of when a hash character is found.
+    fn handle_hash(&mut self, position: SrcPosition) -> Fallible<Token<'buf>> {
+        self.src_iter.next();
+        Ok(Token { kind: TokenKind::Hash, location: position.location })
+    }
+
+    /// Handles the case of when a string literal is found.
+    fn handle_string(&mut self, first: SrcPosition) -> Fallible<Token<'buf>> {
+        let mut count = 0;
+
+        self.src_iter.next();
+        let mut curr = match self.src_iter.peek() {
+            Some(&val) => val,
+            None => Err(UnterminatedString { location: first.location })?,
+        };
+        let slice = curr.buffer;
+
+        while curr.ch != first.ch {
+            self.src_iter.next();
+            match self.src_iter.peek() {
+                Some(&val) => curr = val,
+                None => Err(UnterminatedString { location: first.location })?,
+            };
+            count += 1;
+        }
+        self.src_iter.next();
+
+        Ok(Token {
+            kind: TokenKind::String(&slice[.. count]),
+            location: first.location,
         })
     }
 
     /// Skips a comment.
     fn skip_comment(&mut self) -> Fallible<()> {
         self.src_iter.next();
-        while let Some(_) = self.src_iter.peek().filter(|pos| !is_newline(pos.ch)) {
+        while let Some(_) =
+            self.src_iter.peek().filter(|pos| !is_newline(pos.ch))
+        {
             self.src_iter.next();
         }
         Ok(())
@@ -324,6 +405,18 @@ impl<'buf> Iterator for Lexer<'buf> {
             self.handle_mult(position)
         } else if is_division(position.ch) {
             self.handle_division(position)
+        } else if is_open_paren(position.ch) {
+            self.handle_open_paren(position)
+        } else if is_close_paren(position.ch) {
+            self.handle_close_paren(position)
+        } else if is_open_sqr_bracket(position.ch) {
+            self.handle_open_sqr_bracket(position)
+        } else if is_close_sqr_bracket(position.ch) {
+            self.handle_close_sqr_bracket(position)
+        } else if is_hash(position.ch) {
+            self.handle_hash(position)
+        } else if is_string_delim(position.ch) {
+            self.handle_string(position)
         } else {
             self.handle_error(position)
         })
@@ -332,10 +425,7 @@ impl<'buf> Iterator for Lexer<'buf> {
 
 /// Tests if the byte is a whitespace character.
 fn is_whitespace(ch: u8) -> bool {
-    match ch {
-        b' ' | b'\t' | b'\r' => true,
-        _ => false,
-    }
+    ch == b' ' || ch == b'\t' || ch == b'\r'
 }
 
 /// Tests if the byte is a newline character.
@@ -398,7 +488,7 @@ fn is_minus(ch: u8) -> bool {
     ch == b'-'
 }
 
-/// Tests if the byte is a mult operator.
+/// Tests if the byte is a multiplication operator.
 fn is_mult(ch: u8) -> bool {
     ch == b'*'
 }
@@ -406,6 +496,36 @@ fn is_mult(ch: u8) -> bool {
 /// Tests if the byte is a division operator.
 fn is_division(ch: u8) -> bool {
     ch == b'/'
+}
+
+/// Tests if the byte is an opening parentheses.
+fn is_open_paren(ch: u8) -> bool {
+    ch == b'('
+}
+
+/// Tests if the byte is a closing parentheses.
+fn is_close_paren(ch: u8) -> bool {
+    ch == b')'
+}
+
+/// Tests if the byte is an opening square bracket.
+fn is_open_sqr_bracket(ch: u8) -> bool {
+    ch == b'['
+}
+
+/// Tests if the byte is a closing square bracket.
+fn is_close_sqr_bracket(ch: u8) -> bool {
+    ch == b']'
+}
+
+/// Tests if the byte is a hash character.
+fn is_hash(ch: u8) -> bool {
+    ch == b'#'
+}
+
+/// Tests if the byte is a string delimiter.
+fn is_string_delim(ch: u8) -> bool {
+    ch == b'\'' || ch == b'"'
 }
 
 /// Converts hex digit to plain number.

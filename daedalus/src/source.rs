@@ -54,7 +54,7 @@ impl<'buf> Iterator for SrcIter<'buf> {
     fn next(&mut self) -> Option<Self::Item> {
         let buffer = self.inner.as_slice();
         let &ch = self.inner.next()?;
-        let loc = self.curr_loc;
+        let location = self.curr_loc;
 
         if ch == b'\n' {
             self.curr_loc.line += 1;
@@ -63,6 +63,6 @@ impl<'buf> Iterator for SrcIter<'buf> {
             self.curr_loc.column += 1;
         }
 
-        Some(SrcPosition { ch, buffer, location: self.curr_loc })
+        Some(SrcPosition { ch, buffer, location })
     }
 }
