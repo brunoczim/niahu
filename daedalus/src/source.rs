@@ -1,14 +1,23 @@
-use std::slice;
+use std::{fmt, slice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A location in the source code, specially an error.
 pub struct Location {
+    /// Referred line.
     pub line: usize,
+    /// Referred column.
     pub column: usize,
 }
 
 impl Default for Location {
     fn default() -> Self {
         Self { line: 1, column: 1 }
+    }
+}
+
+impl fmt::Display for Location {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "in line {}, column {}", self.line, self.column)
     }
 }
 
